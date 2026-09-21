@@ -33,6 +33,7 @@ SALES_INVOICE_NAMING_SERIES = "BC-.YYYY.-.#####"
 def after_install():
 	ensure_erpnext_fixtures()
 	set_up_company_and_fiscal_year()
+	set_up_global_defaults()
 	enable_lbp_currency()
 	set_up_bioclean_settings()
 	set_up_warehouses()
@@ -81,6 +82,22 @@ def set_up_company_and_fiscal_year():
 			fy.year_start_date = date(year, 1, 1)
 			fy.year_end_date = date(year, 12, 31)
 			fy.insert(ignore_permissions=True)
+
+
+def set_up_global_defaults():
+	"""Another Setup-Wizard gap: without it, Global Defaults' default_currency
+	stays Frappe's own out-of-the-box default (INR) and default_company stays
+	unset. That's not just cosmetic - any document created without an
+	explicit currency (e.g. via the API, where Desk's client-side "populate
+	from party" JS never runs) silently defaults to INR instead of USD. Found
+	this the hard way validating the Phase 2 Purchase Receipt flow - a real
+	example of why backend flows get validated before UI is built on them."""
+	defaults = frappe.get_single("Global Defaults")
+	defaults.default_currency = DEFAULT_CURRENCY
+	defaults.country = "Lebanon"
+	if frappe.db.exists("Company", COMPANY_NAME):
+		defaults.default_company = COMPANY_NAME
+	defaults.save(ignore_permissions=True)
 
 
 def enable_lbp_currency():
