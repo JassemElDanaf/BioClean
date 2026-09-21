@@ -196,17 +196,14 @@ docker compose -p bioclean-prod --env-file .env exec backend \
 Visit `http://<host-pc-lan-ip>:8080` (Host header / hosts-file entry set to
 your `SITE_NAME`) to confirm it's live.
 
-## 3.5 Branch protection (known gap)
+## 3.5 Branch protection
 
-The plan calls for requiring PRs into `main` (no direct pushes). GitHub's
-branch protection and repository rulesets both require **GitHub Pro** on a
-private repo — this repo is currently on the free plan, so neither could be
-enabled via the API. For now this is a **discipline, not an enforced rule**:
-work on feature branches and merge via PR by convention. The actual safety
-net — production never gets touched if staging fails — lives in
-`.github/workflows/deploy.yml` and doesn't depend on branch protection at
-all. If enforcing this matters enough, upgrading to GitHub Pro (a few
-dollars/month) turns branch protection back on with no other changes needed.
+The repo is public (GitHub's branch protection API requires a paid plan on
+private repos), with protection enabled on `main`: pull requests required
+before merging (0 required approvals, so solo work isn't blocked), no direct
+pushes, no force-pushes, no branch deletion. The actual safety net — production
+never gets touched if staging fails — lives in `.github/workflows/deploy.yml`
+regardless; branch protection is the git-workflow discipline layered on top.
 
 ## 4. CI/CD setup (self-hosted runner, inside WSL2)
 
