@@ -42,6 +42,7 @@ def after_install():
 	set_up_sales_invoice_naming_series()
 	set_up_loyalty_program()
 	set_up_item_custom_fields()
+	set_up_roles()
 	frappe.db.commit()
 
 
@@ -254,6 +255,74 @@ def set_up_loyalty_program():
 		},
 	)
 	program.insert(ignore_permissions=True)
+
+
+CASHIER_ROLE = "Cashier"
+STORE_MANAGER_ROLE = "Store Manager"
+
+# Only two roles are actually new. "Accountant" reuses ERPNext's native
+# Accounts Manager role, and "Owner/Admin" is Frappe's own System Manager -
+# native-first, per the project rule, rather than inventing parallel roles
+# for things that already exist.
+CASHIER_PERMISSIONS = {
+	# doctype: (read, write, create, submit, cancel, delete)
+	"Sales Invoice": (1, 1, 1, 1, 1, 0),  # full discretion on discounts/returns - confirmed decision
+	"Customer": (1, 1, 1, 0, 0, 0),  # find-or-create at checkout
+	"Item": (1, 0, 0, 0, 0, 0),  # browse the catalog, not edit it
+	"POS Opening Entry": (1, 1, 1, 1, 0, 0),
+	"POS Closing Entry": (1, 1, 1, 1, 0, 0),
+}
+
+STORE_MANAGER_PERMISSIONS = {
+	**CASHIER_PERMISSIONS,
+	"Item": (1, 1, 1, 0, 0, 0),  # manages the catalog/pricing (Inventory tab)
+	"Purchase Order": (1, 1, 1, 1, 1, 0),
+	"Purchase Receipt": (1, 1, 1, 1, 1, 0),
+	"Purchase Invoice": (1, 1, 1, 1, 1, 0),
+	"Supplier": (1, 1, 1, 0, 0, 0),
+	"Stock Reconciliation": (1, 1, 1, 1, 1, 0),
+	"Delivery Note": (1, 1, 1, 1, 1, 0),
+	# Expenses tab backend: Journal Entry, not Expense Claim - Expense Claim
+	# lives in the separate `hrms` app, which we're not installing (avoids an
+	# extra app + a lot of unrelated HR/payroll scope for one confirmed
+	# decision: log expenses freely, no approval gate). Journal Entry is
+	# native to core Accounts and can be tagged to a Cost Center just as well.
+	"Journal Entry": (1, 1, 1, 1, 0, 0),
+}
+
+
+def set_up_roles():
+	"""Cashier and Store Manager are the only genuinely new roles - Accountant
+	reuses ERPNext's native Accounts Manager, Owner/Admin is System Manager.
+	Deliberately excludes BioClean Settings (the persistent exchange rate) -
+	that stays System-Manager-only (see the DocType's own permissions),
+	matching the plan's call to explicitly decide who can change the rate."""
+	for role_name in (CASHIER_ROLE, STORE_MANAGER_ROLE):
+		if not frappe.db.exists("Role", role_name):
+			role = frappe.new_doc("Role")
+			role.role_name = role_name
+			role.desk_access = 1
+			role.insert(ignore_permissions=True)
+
+	_apply_role_permissions(CASHIER_ROLE, CASHIER_PERMISSIONS)
+	_apply_role_permissions(STORE_MANAGER_ROLE, STORE_MANAGER_PERMISSIONS)
+
+
+def _apply_role_permissions(role_name, permissions):
+	from frappe.permissions import add_permission, update_permission_property
+
+	for doctype, (read, write, create, submit, cancel, delete) in permissions.items():
+		if not frappe.db.exists("Custom DocPerm", {"parent": doctype, "role": role_name}):
+			add_permission(doctype, role_name, 0)
+		for prop, value in (
+			("read", read),
+			("write", write),
+			("create", create),
+			("submit", submit),
+			("cancel", cancel),
+			("delete", delete),
+		):
+			update_permission_property(doctype, role_name, 0, prop, value)
 
 
 def set_up_item_custom_fields():
