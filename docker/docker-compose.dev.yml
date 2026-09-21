@@ -1,0 +1,38 @@
+services:
+  mariadb:
+    image: docker.io/mariadb:11.8
+    command:
+      - --character-set-server=utf8mb4
+      - --collation-server=utf8mb4_unicode_ci
+      - --skip-character-set-client-handshake
+    environment:
+      MYSQL_ROOT_PASSWORD: "123"
+      MARIADB_AUTO_UPGRADE: "1"
+    volumes:
+      - mariadb-data:/var/lib/mysql
+
+  redis-cache:
+    image: docker.io/redis:alpine
+
+  redis-queue:
+    image: docker.io/redis:alpine
+
+  frappe:
+    image: docker.io/frappe/bench:latest
+    command: sleep infinity
+    environment:
+      - SHELL=/bin/bash
+    volumes:
+      - bench-data:/home/frappe/bench-workspace
+      # Bind-mount the repo root directly into the bench's app slot, so edits
+      # made on the host (in this repo) are picked up immediately - no rebuild,
+      # no copy step. The repo root IS the `bioclean` Frappe app (see README).
+      - ..:/home/frappe/bench-workspace/frappe-bench/apps/bioclean
+    working_dir: /home/frappe/bench-workspace/frappe-bench
+    ports:
+      - "8000:8000"
+      - "9000:9000"
+
+volumes:
+  mariadb-data:
+  bench-data:

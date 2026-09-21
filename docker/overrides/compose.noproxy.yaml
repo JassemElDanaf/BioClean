@@ -1,0 +1,8 @@
+# Vendored from frappe/frappe_docker. See docker/compose.yaml header.
+# Exposes the frontend directly on HTTP_PUBLISH_PORT (default 8080).
+# TLS is terminated separately (Tailscale Serve, or a local reverse proxy) -
+# see DEPLOY.md "Remote access & TLS".
+services:
+  frontend:
+    ports:
+      - ${HTTP_PUBLISH_PORT:-8080}:8080

@@ -1,0 +1,34 @@
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.eggs/
+
+# Node
+node_modules/
+dist/
+.vite/
+
+# Frappe / bench artifacts (never live in this repo)
+frappe-bench/
+sites/
+*.log
+
+# Env / secrets
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Editor / OS
+.vscode/
+.idea/
+.DS_Store
+Thumbs.db
+
+# Claude Code local session/tooling state - not project source
+.claude/
+
+# Local scratch
+*.tmp
