@@ -85,8 +85,7 @@ app_license = "mit"
 # Installation
 # ------------
 
-# before_install = "bioclean.install.before_install"
-# after_install = "bioclean.install.after_install"
+after_install = "bioclean.setup.after_install"
 
 # Uninstallation
 # ------------
@@ -144,13 +143,11 @@ app_license = "mit"
 # ---------------
 # Hook on document methods and events
 
-# doc_events = {
-# 	"*": {
-# 		"on_update": "method",
-# 		"on_cancel": "method",
-# 		"on_trash": "method"
-# 	}
-# }
+doc_events = {
+	"BioClean Settings": {
+		"on_update": "bioclean.setup.on_bioclean_settings_update",
+	}
+}
 
 # Scheduled Tasks
 # ---------------
