@@ -29,6 +29,14 @@ services:
       # no copy step. The repo root IS the `bioclean` Frappe app (see README).
       - ..:/home/frappe/bench-workspace/frappe-bench/apps/bioclean
     working_dir: /home/frappe/bench-workspace/frappe-bench
+    # PDF generation (A4 Invoice, Receipt) embeds site-relative URLs (the
+    # Letter Head logo, item photos) that wkhtmltopdf resolves as real HTTP
+    # requests against the site's own hostname - without this, the
+    # container can't resolve its own "bioclean.localhost" and PDF
+    # generation fails with a HostNotFoundError (found while pagination-
+    # testing the A4 Invoice print format in Phase 7).
+    extra_hosts:
+      - "bioclean.localhost:127.0.0.1"
     ports:
       - "8000:8000"
       - "9000:9000"

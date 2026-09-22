@@ -1,0 +1,102 @@
+<style>
+	.bc-invoice { font-family: Arial, Helvetica, sans-serif; font-size: 10pt; color: #222; }
+	.bc-invoice table { width: 100%; border-collapse: collapse; }
+	.bc-invoice thead tr { display: table-row; }
+	.bc-invoice th {
+		background: #2E7D32; color: #fff; text-align: left;
+		padding: 6px 8px; font-size: 9pt; font-weight: bold;
+	}
+	.bc-invoice td { padding: 6px 8px; border-bottom: 1px solid #e0e0e0; font-size: 9.5pt; vertical-align: top; }
+	.bc-invoice tr { page-break-inside: avoid; }
+	.bc-item-img { width: 32px; height: 32px; object-fit: contain; }
+	.bc-right { text-align: right; }
+	.bc-center { text-align: center; }
+</style>
+
+<div class="bc-invoice">
+	<table style="margin-bottom: 14px;">
+		<tr style="border: none;">
+			<td style="border: none; width: 50%;">
+				<div style="font-size: 15pt; font-weight: bold; color: #2E7D32;">BioClean</div>
+				<div style="font-size: 8pt; color: #666;">Cleaning Products - Retail &amp; Distribution</div>
+			</td>
+			<td style="border: none; width: 50%;" class="bc-right">
+				<div style="font-size: 14pt; font-weight: bold;">INVOICE</div>
+				<div>{{ doc.name }}</div>
+				<div style="font-size: 8pt; color: #666;">{{ frappe.utils.format_date(doc.posting_date) }}</div>
+			</td>
+		</tr>
+	</table>
+
+	<table style="margin-bottom: 14px;">
+		<tr style="border: none;">
+			<td style="border: none; width: 50%;">
+				<div style="font-size: 8pt; color: #666; text-transform: uppercase;">Bill To</div>
+				<div style="font-weight: bold;">{{ doc.customer_name }}</div>
+				{% if doc.address_display %}<div style="font-size: 9pt;">{{ doc.address_display }}</div>{% endif %}
+				{% if doc.contact_mobile %}<div style="font-size: 9pt;">{{ doc.contact_mobile }}</div>{% endif %}
+			</td>
+			<td style="border: none; width: 50%;" class="bc-right">
+				<div style="font-size: 8pt; color: #666; text-transform: uppercase;">Due Date</div>
+				<div>{{ frappe.utils.format_date(doc.due_date) }}</div>
+				<div style="font-size: 8pt; color: #666; text-transform: uppercase; margin-top: 4px;">Currency</div>
+				<div>{{ doc.currency }}</div>
+			</td>
+		</tr>
+	</table>
+
+	<table>
+		<thead>
+			<tr>
+				<th style="width: 40px;"></th>
+				<th>Item</th>
+				<th class="bc-right" style="width: 60px;">Qty</th>
+				<th class="bc-right" style="width: 90px;">Rate</th>
+				<th class="bc-right" style="width: 100px;">Amount</th>
+			</tr>
+		</thead>
+		<tbody>
+			{% for item in doc.items %}
+			<tr>
+				<td>{% if item.image %}<img class="bc-item-img" src="{{ item.image }}">{% endif %}</td>
+				<td>
+					<div style="font-weight: bold;">{{ item.item_name }}{% if item.rate == 0 %} <span style="color: #2E7D32;">(FREE)</span>{% endif %}</div>
+					<div style="font-size: 8pt; color: #888;">{{ item.item_code }}</div>
+				</td>
+				<td class="bc-right">{{ item.qty|int }} {{ item.uom }}</td>
+				<td class="bc-right">{{ "%.2f"|format(item.rate) }}</td>
+				<td class="bc-right">{{ "%.2f"|format(item.amount) }}</td>
+			</tr>
+			{% endfor %}
+		</tbody>
+	</table>
+
+	<table style="margin-top: 10px;">
+		<tr style="border: none;">
+			<td style="border: none; width: 60%;"></td>
+			<td style="border: none; width: 40%;">
+				<table>
+					<tr><td style="border: none;">Net Total</td><td class="bc-right" style="border: none;">{{ "%.2f"|format(doc.net_total) }}</td></tr>
+					{% if doc.total_taxes_and_charges %}
+					<tr><td style="border: none;">Tax</td><td class="bc-right" style="border: none;">{{ "%.2f"|format(doc.total_taxes_and_charges) }}</td></tr>
+					{% endif %}
+					{% if doc.discount_amount %}
+					<tr><td style="border: none;">Discount</td><td class="bc-right" style="border: none;">-{{ "%.2f"|format(doc.discount_amount) }}</td></tr>
+					{% endif %}
+					<tr style="border-top: 2px solid #2E7D32;">
+						<td style="border: none; font-weight: bold; font-size: 12pt; padding-top: 6px;">Total</td>
+						<td class="bc-right" style="border: none; font-weight: bold; font-size: 12pt; padding-top: 6px;">{{ doc.currency }} {{ "%.2f"|format(doc.grand_total) }}</td>
+					</tr>
+				</table>
+			</td>
+		</tr>
+	</table>
+
+	<div style="margin-top: 6px; font-size: 8pt; color: #666;">{{ doc.in_words }}</div>
+
+	{% if doc.terms %}
+	<div style="margin-top: 16px; padding-top: 8px; border-top: 1px solid #e0e0e0; font-size: 8pt; color: #666;">
+		{{ doc.terms }}
+	</div>
+	{% endif %}
+</div>
