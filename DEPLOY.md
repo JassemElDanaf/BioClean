@@ -196,6 +196,30 @@ docker compose -p bioclean-prod --env-file .env exec backend \
 Visit `http://<host-pc-lan-ip>:8080` (Host header / hosts-file entry set to
 your `SITE_NAME`) to confirm it's live.
 
+## 3.1 User accounts — one login per person (Phase 8, not optional)
+
+Create a real, named Frappe user for every cashier and manager who will
+actually use the system - never a single shared "Cashier" or "Staff"
+login used by whoever's on shift. This isn't a style preference: the
+audit trail, cash-shift accountability (who was actually on register when
+a shortage showed up at close), and the Boss Mode Audit tab (Phase 8)
+only mean anything if "who did this" maps to one real person. There is no
+technical setting that enforces this - it's an operational rule to follow
+every time someone new starts.
+
+Per Desk (`User List` → `New`), assign exactly one of these roles:
+
+| Person             | Role(s) to assign                          |
+|--------------------|---------------------------------------------|
+| Cashier             | `Cashier`                                    |
+| Store Manager/staff | `Store Manager`                              |
+| Accountant          | `Accounts Manager` (native ERPNext role)     |
+| Owner/Admin         | `System Manager`                             |
+
+Drivers are **not** given a login at all - they're modeled as an ERPNext
+`Customer` record only (see Phase 5 / Cash Van design), since they never
+touch the system directly.
+
 ## 3.5 Branch protection
 
 The repo is public (GitHub's branch protection API requires a paid plan on

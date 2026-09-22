@@ -306,6 +306,15 @@ CASHIER_PERMISSIONS = {
 	"Sales Invoice": (1, 1, 1, 1, 1, 0),  # full discretion on discounts/returns - confirmed decision
 	"Customer": (1, 1, 1, 0, 0, 0),  # find-or-create at checkout
 	"Item": (1, 0, 0, 0, 0, 0),  # browse the catalog, not edit it
+	# Found via Phase 8 permission testing with a real Cashier user (not
+	# Administrator, which bypasses all of this): get_pos_items() joins
+	# Item Price using frappe.get_all(), which - unlike the frappe.db.*
+	# calls elsewhere in api.py - applies real permission filtering. Without
+	# this, every item in Cashier Mode's photo grid silently showed "No
+	# price" for an actual cashier, while barcode lookup (a raw db.get_value
+	# call) worked fine - an inconsistency that would have been very
+	# confusing to debug from a bug report alone.
+	"Item Price": (1, 0, 0, 0, 0, 0),
 	"POS Opening Entry": (1, 1, 1, 1, 0, 0),
 	"POS Closing Entry": (1, 1, 1, 1, 0, 0),
 	"Gift Card": (1, 0, 0, 0, 0, 0),  # look up balance at checkout, not issue new cards
@@ -314,6 +323,7 @@ CASHIER_PERMISSIONS = {
 STORE_MANAGER_PERMISSIONS = {
 	**CASHIER_PERMISSIONS,
 	"Item": (1, 1, 1, 0, 0, 0),  # manages the catalog/pricing (Inventory tab)
+	"Item Price": (1, 1, 1, 0, 0, 0),
 	"Purchase Order": (1, 1, 1, 1, 1, 0),
 	"Purchase Receipt": (1, 1, 1, 1, 1, 0),
 	"Purchase Invoice": (1, 1, 1, 1, 1, 0),

@@ -201,3 +201,78 @@ def get_cost_centers(company="BioClean"):
 		fields=["name"],
 		order_by="name",
 	)
+
+
+@frappe.whitelist()
+def get_audit_trail(from_date=None, to_date=None, company="BioClean"):
+	"""Phase 8 - surfaces Frappe's own already-recorded history (Version/
+	docstatus) for the actions that matter most, rather than building a
+	parallel logging system: discounts/refunds (Sales Invoice returns),
+	cancellations, stock adjustments, cash variances (POS Closing Entry),
+	exchange-rate changes (BioClean Settings' Version history), and van
+	settlement cancellations."""
+	_require_boss_role()
+	from_date = from_date or add_days(today(), -30)
+	to_date = to_date or today()
+
+	return {
+		"cancelled_invoices": frappe.get_all(
+			"Sales Invoice",
+			filters={"docstatus": 2, "company": company, "modified": ["between", [from_date, to_date]]},
+			fields=["name", "customer", "grand_total", "modified", "modified_by"],
+			order_by="modified desc",
+		),
+		"returns": frappe.get_all(
+			"Sales Invoice",
+			filters={"docstatus": 1, "is_return": 1, "company": company, "posting_date": ["between", [from_date, to_date]]},
+			fields=["name", "customer", "grand_total", "posting_date", "owner"],
+			order_by="posting_date desc",
+		),
+		"stock_adjustments": frappe.get_all(
+			"Stock Reconciliation",
+			filters={"docstatus": 1, "company": company, "posting_date": ["between", [from_date, to_date]]},
+			fields=["name", "posting_date", "difference_amount", "owner"],
+			order_by="posting_date desc",
+		),
+		"cash_variances": _cash_variances(company, from_date, to_date),
+		"rate_changes": _rate_change_history(from_date, to_date),
+		"cancelled_van_settlements": frappe.get_all(
+			"Van Settlement",
+			filters={"docstatus": 2, "company": company, "modified": ["between", [from_date, to_date]]},
+			fields=["name", "driver", "total_net_sold_amount", "modified", "modified_by"],
+			order_by="modified desc",
+		),
+	}
+
+
+def _cash_variances(company, from_date, to_date):
+	# The variance ("difference") lives per Mode of Payment on POS Closing
+	# Entry's own child table, not on the parent doc itself.
+	return frappe.db.sql(
+		"""select pce.name, pce.period_end_date, pce.user, pce.owner,
+			pced.mode_of_payment, pced.difference
+		from `tabPOS Closing Entry Detail` pced
+		join `tabPOS Closing Entry` pce on pce.name = pced.parent
+		where pce.docstatus = 1 and pce.company = %s
+			and pce.period_end_date between %s and %s
+			and pced.difference != 0
+		order by pce.period_end_date desc""",
+		(company, from_date, to_date),
+		as_dict=1,
+	)
+
+
+def _rate_change_history(from_date, to_date):
+	versions = frappe.get_all(
+		"Version",
+		filters={"ref_doctype": "BioClean Settings", "creation": ["between", [from_date, to_date]]},
+		fields=["name", "data", "owner", "creation"],
+		order_by="creation desc",
+	)
+	changes = []
+	for v in versions:
+		data = frappe.parse_json(v.data)
+		for field, old_val, new_val in data.get("changed", []):
+			if field == "usd_to_lbp_rate":
+				changes.append({"date": v.creation, "old_rate": old_val, "new_rate": new_val, "changed_by": v.owner})
+	return changes

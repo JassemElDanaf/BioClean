@@ -21,6 +21,7 @@
 			<IncomeTab v-else-if="activeTab === 'income'" />
 			<InvoicesTab v-else-if="activeTab === 'invoices'" />
 			<ReportsTab v-else-if="activeTab === 'reports'" />
+			<AuditTab v-else-if="activeTab === 'audit'" />
 		</div>
 	</div>
 </template>
@@ -32,6 +33,7 @@ import ExpensesTab from "./boss/ExpensesTab.vue";
 import IncomeTab from "./boss/IncomeTab.vue";
 import InvoicesTab from "./boss/InvoicesTab.vue";
 import ReportsTab from "./boss/ReportsTab.vue";
+import AuditTab from "./boss/AuditTab.vue";
 
 const tabs = [
 	{ key: "dashboard", label: "Dashboard" },
@@ -39,6 +41,7 @@ const tabs = [
 	{ key: "income", label: "Income" },
 	{ key: "invoices", label: "Invoices" },
 	{ key: "reports", label: "Reports" },
+	{ key: "audit", label: "Audit" },
 ];
 const activeTab = ref("dashboard");
 </script>
