@@ -39,6 +39,16 @@ PRICE_LISTS = ["Retail", "Wholesale"]
 
 SALES_INVOICE_NAMING_SERIES = "BC-.YYYY.-.#####"
 
+# Phase 3a set up Cash; Card and Whish/OMT were promised in the same phase's
+# scope but never actually created - closing that gap here as part of Phase
+# 6's payment-method work (Gift Card needs a Mode of Payment too, and it's
+# the same one-line native config as the other two).
+MODES_OF_PAYMENT = [
+	("Card", "Bank"),
+	("Whish/OMT", "Bank"),
+	("Gift Card", "General"),
+]
+
 
 def after_install():
 	ensure_erpnext_fixtures()
@@ -56,6 +66,10 @@ def after_install():
 	set_up_roles()
 	set_up_pos_custom_fields()
 	set_up_driver_customer_group()
+	set_up_modes_of_payment()
+	set_up_stock_settings()
+	set_up_gift_card_liability_account()
+	set_up_gift_card_custom_fields()
 	frappe.db.commit()
 
 
@@ -294,6 +308,7 @@ CASHIER_PERMISSIONS = {
 	"Item": (1, 0, 0, 0, 0, 0),  # browse the catalog, not edit it
 	"POS Opening Entry": (1, 1, 1, 1, 0, 0),
 	"POS Closing Entry": (1, 1, 1, 1, 0, 0),
+	"Gift Card": (1, 0, 0, 0, 0, 0),  # look up balance at checkout, not issue new cards
 }
 
 STORE_MANAGER_PERMISSIONS = {
@@ -318,6 +333,8 @@ STORE_MANAGER_PERMISSIONS = {
 	"Stock Entry": (1, 1, 1, 1, 1, 0),
 	"Payment Entry": (1, 1, 1, 1, 1, 0),
 	"Van Settlement": (1, 1, 1, 1, 1, 0),
+	"Gift Card": (1, 1, 1, 0, 0, 0),  # issuing new cards is a manager action
+	"Material Request": (1, 1, 1, 1, 1, 0),  # reorder automation output
 }
 
 
@@ -453,6 +470,81 @@ def set_up_pos_custom_fields():
 				"precision": "2",
 				"insert_after": "bioclean_tendered_currency",
 				"description": "The actual amount tendered in bioclean_tendered_currency (e.g. 100000 for an LBP payment), before conversion to the invoice's USD amount.",
+			},
+		)
+
+
+def set_up_modes_of_payment():
+	for name, payment_type in MODES_OF_PAYMENT:
+		if not frappe.db.exists("Mode of Payment", name):
+			mop = frappe.new_doc("Mode of Payment")
+			mop.mode_of_payment = name
+			mop.type = payment_type
+			mop.insert(ignore_permissions=True)
+
+
+def set_up_stock_settings():
+	"""Turns on ERPNext's native scheduled reorder job (Stock Settings'
+	"Auto Material Request" checkbox) - Phase 6's reorder automation is
+	otherwise pure native config, no custom code. Per-item reorder
+	level/qty is a real business call (what's actually safe stock for each
+	item) that only the Store Manager can make correctly, so that stays a
+	Desk data-entry task on the Item form's own "Reorder" table, not
+	something this script guesses values for."""
+	settings = frappe.get_single("Stock Settings")
+	if not settings.auto_indent:
+		settings.auto_indent = 1
+		settings.save(ignore_permissions=True)
+
+
+GIFT_CARD_LIABILITY_ACCOUNT = "Gift Card Liability"
+
+
+def set_up_gift_card_liability_account():
+	"""A gift card is money BioClean has already been paid for goods it
+	hasn't handed over yet - a liability, not revenue, until redeemed
+	(see gift_card.py's issue(), which posts the Journal Entry for this).
+	Kept separate from native Customer Advances since gift cards aren't
+	tied to a Customer record at all (see the Gift Card doctype's own
+	docstring)."""
+	if not frappe.db.exists("Company", COMPANY_NAME):
+		return
+
+	account_name = f"{GIFT_CARD_LIABILITY_ACCOUNT} - {COMPANY_ABBR}"
+	if not frappe.db.exists("Account", account_name):
+		parent = frappe.db.get_value(
+			"Account", {"company": COMPANY_NAME, "account_name": "Current Liabilities", "is_group": 1}, "name"
+		)
+		if not parent:
+			return
+		account = frappe.new_doc("Account")
+		account.account_name = GIFT_CARD_LIABILITY_ACCOUNT
+		account.company = COMPANY_NAME
+		account.parent_account = parent
+		account.is_group = 0
+		account.insert(ignore_permissions=True)
+
+	mop = frappe.get_doc("Mode of Payment", "Gift Card")
+	if not any(row.company == COMPANY_NAME for row in mop.accounts):
+		mop.append("accounts", {"company": COMPANY_NAME, "default_account": account_name})
+		mop.save(ignore_permissions=True)
+
+
+def set_up_gift_card_custom_fields():
+	"""Phase 6 - lets a Sales Invoice Payment row record which Gift Card
+	code was redeemed for it (see bioclean/api.py's checkout()), the same
+	pattern as the tendered-currency fields Phase 3a added for cash."""
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+
+	if not frappe.db.exists("Custom Field", "Sales Invoice Payment-bioclean_gift_card_code"):
+		create_custom_field(
+			"Sales Invoice Payment",
+			{
+				"fieldname": "bioclean_gift_card_code",
+				"label": "Gift Card Code",
+				"fieldtype": "Data",
+				"insert_after": "bioclean_tendered_amount",
+				"description": "Which Gift Card this payment row redeemed, when mode_of_payment is Gift Card.",
 			},
 		)
 

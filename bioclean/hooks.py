@@ -148,7 +148,10 @@ after_install = "bioclean.setup.after_install"
 doc_events = {
 	"BioClean Settings": {
 		"on_update": "bioclean.setup.on_bioclean_settings_update",
-	}
+	},
+	"Sales Invoice": {
+		"on_cancel": "bioclean.bioclean.doctype.gift_card.gift_card.reverse_redemptions_on_cancel",
+	},
 }
 
 # Scheduled Tasks

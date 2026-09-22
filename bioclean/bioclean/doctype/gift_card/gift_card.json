@@ -1,0 +1,114 @@
+{
+ "actions": [],
+ "creation": "2026-09-22 22:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "gift_card_code",
+  "status",
+  "company",
+  "column_break_1",
+  "initial_balance",
+  "current_balance",
+  "issued_date",
+  "issued_to",
+  "section_break_1",
+  "transactions"
+ ],
+ "fields": [
+  {
+   "description": "Auto-generated if left blank on creation. Redeemable by whoever holds the code - not tied to a Customer record, unlike native store credit.",
+   "fieldname": "gift_card_code",
+   "fieldtype": "Data",
+   "label": "Gift Card Code",
+   "reqd": 1,
+   "unique": 1
+  },
+  {
+   "default": "Active",
+   "fieldname": "status",
+   "fieldtype": "Select",
+   "in_standard_filter": 1,
+   "label": "Status",
+   "options": "Active\nDisabled",
+   "reqd": 1
+  },
+  {
+   "default": "BioClean",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "initial_balance",
+   "fieldtype": "Currency",
+   "label": "Initial Balance (USD)",
+   "options": "USD",
+   "reqd": 1
+  },
+  {
+   "fieldname": "current_balance",
+   "fieldtype": "Currency",
+   "label": "Current Balance (USD)",
+   "options": "USD",
+   "read_only": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "issued_date",
+   "fieldtype": "Date",
+   "label": "Issued Date"
+  },
+  {
+   "description": "Free text (name/phone) - optional, since the card itself is what's redeemable, not a linked account.",
+   "fieldname": "issued_to",
+   "fieldtype": "Data",
+   "label": "Issued To"
+  },
+  {
+   "fieldname": "section_break_1",
+   "fieldtype": "Section Break",
+   "label": "Transaction History"
+  },
+  {
+   "fieldname": "transactions",
+   "fieldtype": "Table",
+   "label": "Transactions",
+   "options": "Gift Card Transaction",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "links": [],
+ "modified": "2026-09-22 22:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "BioClean",
+ "name": "Gift Card",
+ "naming_rule": "By script",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}

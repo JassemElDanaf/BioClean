@@ -22,6 +22,7 @@ Design notes:
 
 import frappe
 from frappe import _
+from frappe.utils import flt
 
 
 @frappe.whitelist()
@@ -120,7 +121,29 @@ def checkout(idempotency_key, items, payments, customer=None, warehouse="Stores 
 			},
 		)
 
+	gift_card_redemptions = []  # [(Gift Card doc, amount)] - actually redeemed only after si.insert() succeeds
 	for payment in payments:
+		if payment["mode_of_payment"] == "Gift Card":
+			code = payment.get("gift_card_code")
+			if not code:
+				frappe.throw(_("A gift card code is required for a Gift Card payment."))
+			card = frappe.get_doc("Gift Card", code)
+			amount = flt(payment["amount"])
+			if card.status != "Active":
+				frappe.throw(_("Gift Card {0} is not active.").format(code))
+			if amount > flt(card.current_balance):
+				frappe.throw(
+					_("Gift Card {0} has a balance of {1}, less than the {2} requested.").format(
+						code, card.current_balance, amount
+					)
+				)
+			gift_card_redemptions.append((card, amount))
+			payment_row = si.append("payments", {"mode_of_payment": "Gift Card", "amount": amount})
+			payment_row.bioclean_tendered_currency = "USD"
+			payment_row.bioclean_tendered_amount = amount
+			payment_row.bioclean_gift_card_code = code
+			continue
+
 		currency = payment.get("currency", "USD")
 		tendered_amount = payment["amount"]
 		base_amount = _convert_payment_to_base_amount(tendered_amount, currency, rate)
@@ -143,6 +166,12 @@ def checkout(idempotency_key, items, payments, customer=None, warehouse="Stores 
 		winner = frappe.db.get_value("Sales Invoice", {"bioclean_idempotency_key": idempotency_key}, "name")
 		return _checkout_result(frappe.get_doc("Sales Invoice", winner))
 
+	# Only actually debit the gift card(s) once the invoice itself has a
+	# name to record against - if anything above failed, nothing here runs
+	# and the whole transaction (this request's own DB work) rolls back.
+	for card, amount in gift_card_redemptions:
+		card.redeem(amount, sales_invoice=si.name)
+
 	si.submit()
 	frappe.db.commit()
 	return _checkout_result(si)
@@ -154,6 +183,27 @@ def get_exchange_rate():
 	just whatever's currently set, for the Cashier Mode currency toggle and
 	mixed-currency payment math."""
 	return frappe.get_single("BioClean Settings").usd_to_lbp_rate
+
+
+@frappe.whitelist()
+def get_gift_card_balance(code):
+	"""Looked up at checkout before a Gift Card payment row is accepted -
+	lets the frontend show the balance and reject an inactive/unknown code
+	before the cashier tries to apply it."""
+	if not frappe.db.exists("Gift Card", code):
+		frappe.throw(_("Gift Card {0} was not found.").format(code))
+	card = frappe.db.get_value("Gift Card", code, ["status", "current_balance"], as_dict=True)
+	return {"code": code, "status": card.status, "balance": card.current_balance}
+
+
+@frappe.whitelist()
+def issue_gift_card(amount, issued_to=None):
+	"""Store Manager action (Boss Mode) - hands out a brand-new gift card,
+	auto-generating its code."""
+	from bioclean.bioclean.doctype.gift_card.gift_card import issue
+
+	card = issue(amount=amount, issued_to=issued_to)
+	return {"code": card.name, "balance": card.current_balance}
 
 
 @frappe.whitelist()
