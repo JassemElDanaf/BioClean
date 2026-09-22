@@ -3,14 +3,7 @@
 		<div class="w-full max-w-md rounded-[var(--radius-lg)] bg-white p-5 shadow-[var(--shadow-elevated)]">
 			<h2 class="mb-1 text-lg font-semibold">Checkout</h2>
 			<p class="mb-4 text-sm text-neutral-500">Total due: <span class="font-semibold text-neutral-900">${{ total.toFixed(2) }}</span></p>
-
-			<label class="mb-1 block text-xs font-medium text-neutral-500">Customer phone (optional)</label>
-			<input
-				v-model="phone"
-				type="tel"
-				placeholder="Skip for anonymous sale"
-				class="touch-target mb-4 w-full rounded-[var(--radius-md)] border border-neutral-200 px-3"
-			/>
+			<p v-if="customerPhone" class="mb-4 text-sm text-neutral-500">Customer: <span class="font-medium text-neutral-900">{{ customerPhone }}</span></p>
 
 			<div class="mb-4 grid grid-cols-2 gap-3">
 				<div>
@@ -70,10 +63,10 @@ const props = defineProps({
 	total: { type: Number, required: true },
 	rate: { type: Number, required: true },
 	lines: { type: Array, required: true },
+	customerPhone: { type: String, default: "" },
 });
 const emit = defineEmits(["close", "success"]);
 
-const phone = ref("");
 const usdTendered = ref(0);
 const lbpTendered = ref(0);
 const submitting = ref(false);
@@ -82,7 +75,6 @@ watch(
 	() => props.open,
 	(isOpen) => {
 		if (isOpen) {
-			phone.value = "";
 			usdTendered.value = Number(props.total.toFixed(2));
 			lbpTendered.value = 0;
 		}
@@ -99,8 +91,8 @@ async function submit() {
 	submitting.value = true;
 	try {
 		let customer = null;
-		if (phone.value.trim()) {
-			const result = await lookupCustomer.submit({ phone: phone.value.trim() });
+		if (props.customerPhone.trim()) {
+			const result = await lookupCustomer.submit({ phone: props.customerPhone.trim() });
 			customer = result.name;
 		}
 
