@@ -1,0 +1,93 @@
+{
+ "actions": [],
+ "creation": "2026-09-22 21:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "item_code",
+  "item_name",
+  "opening_qty",
+  "resellable_returned_qty",
+  "damaged_qty",
+  "net_sold_qty",
+  "rate",
+  "amount"
+ ],
+ "fields": [
+  {
+   "fieldname": "item_code",
+   "fieldtype": "Link",
+   "in_list_view": 1,
+   "label": "Item",
+   "options": "Item",
+   "reqd": 1
+  },
+  {
+   "fetch_from": "item_code.item_name",
+   "fieldname": "item_name",
+   "fieldtype": "Data",
+   "in_list_view": 1,
+   "label": "Item Name",
+   "read_only": 1
+  },
+  {
+   "fieldname": "opening_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Loaded Qty",
+   "reqd": 1
+  },
+  {
+   "default": "0",
+   "fieldname": "resellable_returned_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Returned (Resellable)"
+  },
+  {
+   "default": "0",
+   "fieldname": "damaged_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Damaged / Expired"
+  },
+  {
+   "description": "Loaded Qty minus both return columns - computed on save, not editable directly.",
+   "fieldname": "net_sold_qty",
+   "fieldtype": "Float",
+   "in_list_view": 1,
+   "label": "Net Sold",
+   "read_only": 1
+  },
+  {
+   "fieldname": "rate",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Rate (USD)",
+   "options": "USD"
+  },
+  {
+   "fieldname": "amount",
+   "fieldtype": "Currency",
+   "in_list_view": 1,
+   "label": "Amount (USD)",
+   "options": "USD",
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "istable": 1,
+ "links": [],
+ "modified": "2026-09-22 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "BioClean",
+ "name": "Van Settlement Item",
+ "owner": "Administrator",
+ "permissions": [],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": []
+}

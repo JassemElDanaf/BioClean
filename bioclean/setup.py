@@ -23,7 +23,17 @@ DEFAULT_USD_TO_LBP_RATE = 89500
 # colliding one - only "Vans" is ours to add, as a sibling group for growth.
 EXTRA_WAREHOUSE_GROUPS = ["Vans"]
 
+# One real van to start with - a Store Manager adds more the same way any
+# other warehouse gets added (native Desk "New Warehouse" under "Vans - BC"),
+# no custom code needed for a second or third van.
+DEFAULT_VAN_WAREHOUSE = "Van 1"
+
 COST_CENTER_GROUPS = ["Store Ops", "Drivers", "Admin"]
+
+# Distinguishes driver-as-customer records (Phase 5 Cash Van) from ordinary
+# B2B/individual customers, mainly so the Van Settlement "Driver" field can
+# filter its Link dropdown down to just drivers.
+DRIVER_CUSTOMER_GROUP = "Drivers"
 
 PRICE_LISTS = ["Retail", "Wholesale"]
 
@@ -45,6 +55,7 @@ def after_install():
 	set_up_item_custom_fields()
 	set_up_roles()
 	set_up_pos_custom_fields()
+	set_up_driver_customer_group()
 	frappe.db.commit()
 
 
@@ -174,6 +185,16 @@ def set_up_warehouses():
 			wh.parent_warehouse = root_group
 			wh.insert(ignore_permissions=True)
 
+	vans_group = f"Vans - {COMPANY_ABBR}"
+	van_warehouse = f"{DEFAULT_VAN_WAREHOUSE} - {COMPANY_ABBR}"
+	if frappe.db.exists("Warehouse", vans_group) and not frappe.db.exists("Warehouse", van_warehouse):
+		wh = frappe.new_doc("Warehouse")
+		wh.warehouse_name = DEFAULT_VAN_WAREHOUSE
+		wh.company = COMPANY_NAME
+		wh.is_group = 0
+		wh.parent_warehouse = vans_group
+		wh.insert(ignore_permissions=True)
+
 
 def set_up_cost_centers():
 	if not frappe.db.exists("Company", COMPANY_NAME):
@@ -290,6 +311,13 @@ STORE_MANAGER_PERMISSIONS = {
 	# decision: log expenses freely, no approval gate). Journal Entry is
 	# native to core Accounts and can be tagged to a Cost Center just as well.
 	"Journal Entry": (1, 1, 1, 1, 0, 0),
+	# Phase 5 (Cash Van): Van Load is a plain Stock Entry, and settlement
+	# needs Payment Entry for the cash-collected-now path - both native
+	# doctypes the Store Manager already needs day to day, not new surface
+	# specific to vans.
+	"Stock Entry": (1, 1, 1, 1, 1, 0),
+	"Payment Entry": (1, 1, 1, 1, 1, 0),
+	"Van Settlement": (1, 1, 1, 1, 1, 0),
 }
 
 
@@ -427,3 +455,16 @@ def set_up_pos_custom_fields():
 				"description": "The actual amount tendered in bioclean_tendered_currency (e.g. 100000 for an LBP payment), before conversion to the invoice's USD amount.",
 			},
 		)
+
+
+def set_up_driver_customer_group():
+	"""Phase 5 - drivers are modeled as ERPNext Customers (no system login,
+	per the Cash Van design), tagged into their own Customer Group purely so
+	Van Settlement's "Driver" field can filter its picker down to just
+	drivers instead of every customer in the system."""
+	if frappe.db.exists("Customer Group", DRIVER_CUSTOMER_GROUP):
+		return
+	group = frappe.new_doc("Customer Group")
+	group.customer_group_name = DRIVER_CUSTOMER_GROUP
+	group.parent_customer_group = "All Customer Groups"
+	group.insert(ignore_permissions=True)

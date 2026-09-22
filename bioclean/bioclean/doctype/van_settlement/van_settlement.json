@@ -1,0 +1,196 @@
+{
+ "actions": [],
+ "autoname": "naming_series:",
+ "creation": "2026-09-22 21:00:00.000000",
+ "doctype": "DocType",
+ "editable_grid": 1,
+ "engine": "InnoDB",
+ "field_order": [
+  "naming_series",
+  "driver",
+  "van_warehouse",
+  "company",
+  "posting_date",
+  "column_break_1",
+  "cash_collected",
+  "total_net_sold_amount",
+  "outstanding_amount",
+  "section_break_items",
+  "items",
+  "remarks",
+  "section_break_refs",
+  "sales_invoice",
+  "payment_entry",
+  "column_break_2",
+  "return_stock_entry",
+  "writeoff_stock_entry",
+  "amended_from"
+ ],
+ "fields": [
+  {
+   "fieldname": "naming_series",
+   "fieldtype": "Select",
+   "label": "Series",
+   "options": "VS-.YYYY.-.#####",
+   "reqd": 1
+  },
+  {
+   "description": "Modeled as an ERPNext Customer (no system login) - the settlement invoices the driver himself for net-sold quantity, never individual street customers.",
+   "fieldname": "driver",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Driver",
+   "link_filters": "[[\"Customer\",\"customer_group\",\"=\",\"Drivers\"]]",
+   "options": "Customer",
+   "reqd": 1
+  },
+  {
+   "fieldname": "van_warehouse",
+   "fieldtype": "Link",
+   "in_standard_filter": 1,
+   "label": "Van Warehouse",
+   "link_filters": "[[\"Warehouse\",\"is_group\",\"=\",0]]",
+   "options": "Warehouse",
+   "reqd": 1
+  },
+  {
+   "default": "BioClean",
+   "fieldname": "company",
+   "fieldtype": "Link",
+   "label": "Company",
+   "options": "Company",
+   "reqd": 1
+  },
+  {
+   "default": "Today",
+   "fieldname": "posting_date",
+   "fieldtype": "Date",
+   "in_standard_filter": 1,
+   "label": "Settlement Date",
+   "reqd": 1
+  },
+  {
+   "fieldname": "column_break_1",
+   "fieldtype": "Column Break"
+  },
+  {
+   "default": "0",
+   "description": "What the driver hands over now. Anything left after this is a driver-level receivable, collected later like any other credit customer.",
+   "fieldname": "cash_collected",
+   "fieldtype": "Currency",
+   "label": "Cash Collected Now (USD)",
+   "options": "USD"
+  },
+  {
+   "fieldname": "total_net_sold_amount",
+   "fieldtype": "Currency",
+   "label": "Total Net Sold (USD)",
+   "options": "USD",
+   "read_only": 1
+  },
+  {
+   "fieldname": "outstanding_amount",
+   "fieldtype": "Currency",
+   "label": "Outstanding (USD)",
+   "options": "USD",
+   "read_only": 1
+  },
+  {
+   "fieldname": "section_break_items",
+   "fieldtype": "Section Break",
+   "label": "Stock Count"
+  },
+  {
+   "fieldname": "items",
+   "fieldtype": "Table",
+   "label": "Items",
+   "options": "Van Settlement Item",
+   "reqd": 1
+  },
+  {
+   "fieldname": "remarks",
+   "fieldtype": "Small Text",
+   "label": "Remarks"
+  },
+  {
+   "collapsible": 1,
+   "fieldname": "section_break_refs",
+   "fieldtype": "Section Break",
+   "label": "Generated Documents"
+  },
+  {
+   "fieldname": "sales_invoice",
+   "fieldtype": "Link",
+   "label": "Sales Invoice (billed to driver)",
+   "no_copy": 1,
+   "options": "Sales Invoice",
+   "read_only": 1
+  },
+  {
+   "fieldname": "payment_entry",
+   "fieldtype": "Link",
+   "label": "Payment Entry (cash collected)",
+   "no_copy": 1,
+   "options": "Payment Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "column_break_2",
+   "fieldtype": "Column Break"
+  },
+  {
+   "fieldname": "return_stock_entry",
+   "fieldtype": "Link",
+   "label": "Stock Entry (resellable returns)",
+   "no_copy": 1,
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "writeoff_stock_entry",
+   "fieldtype": "Link",
+   "label": "Stock Entry (damaged write-off)",
+   "no_copy": 1,
+   "options": "Stock Entry",
+   "read_only": 1
+  },
+  {
+   "fieldname": "amended_from",
+   "fieldtype": "Link",
+   "label": "Amended From",
+   "no_copy": 1,
+   "options": "Van Settlement",
+   "print_hide": 1,
+   "read_only": 1
+  }
+ ],
+ "grid_page_length": 50,
+ "index_web_pages_for_search": 1,
+ "is_submittable": 1,
+ "links": [],
+ "modified": "2026-09-22 21:00:00.000000",
+ "modified_by": "Administrator",
+ "module": "BioClean",
+ "name": "Van Settlement",
+ "naming_rule": "By \"Naming Series\" field",
+ "owner": "Administrator",
+ "permissions": [
+  {
+   "cancel": 1,
+   "create": 1,
+   "delete": 0,
+   "email": 1,
+   "print": 1,
+   "read": 1,
+   "role": "System Manager",
+   "share": 1,
+   "submit": 1,
+   "write": 1
+  }
+ ],
+ "row_format": "Dynamic",
+ "sort_field": "creation",
+ "sort_order": "DESC",
+ "states": [],
+ "track_changes": 1
+}
