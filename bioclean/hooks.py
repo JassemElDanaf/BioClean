@@ -76,11 +76,9 @@ app_license = "mit"
 # Jinja
 # ----------
 
-# add methods and filters to jinja environment
-# jinja = {
-# 	"methods": "bioclean.utils.jinja_methods",
-# 	"filters": "bioclean.utils.jinja_filters"
-# }
+jinja = {
+	"methods": ["bioclean.utils.get_loyalty_summary"],
+}
 
 # Installation
 # ------------

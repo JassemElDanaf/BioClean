@@ -1,0 +1,35 @@
+<div style="width: 80mm; max-width: 80mm; font-family: 'Courier New', monospace; font-size: 10pt; margin: 0 auto;">
+	<div style="text-align: center; font-weight: bold; font-size: 13pt;">BioClean</div>
+	<div style="text-align: center; font-size: 8pt;">{{ doc.name }}</div>
+	<div style="text-align: center; font-size: 8pt;">{{ frappe.utils.format_datetime(doc.posting_date, "dd-MM-yyyy") }} {{ doc.posting_time }}</div>
+	<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+
+	{% for item in doc.items %}
+	<div style="display: flex; justify-content: space-between;">
+		<span>{{ item.item_name }}{% if item.rate == 0 %} <b>FREE</b>{% endif %} x{{ item.qty|int }}</span>
+		<span>{{ "%.2f"|format(item.amount) }}</span>
+	</div>
+	{% endfor %}
+
+	<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+	<div style="display: flex; justify-content: space-between; font-weight: bold; font-size: 11pt;">
+		<span>TOTAL</span>
+		<span>${{ "%.2f"|format(doc.grand_total) }}</span>
+	</div>
+	<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+
+	{% for payment in doc.payments %}
+	<div style="display: flex; justify-content: space-between; font-size: 9pt;">
+		<span>{{ payment.mode_of_payment }}{% if payment.bioclean_tendered_currency %} ({{ payment.bioclean_tendered_currency }}){% endif %}</span>
+		<span>{% if payment.bioclean_tendered_currency == "LBP" %}{{ "{:,.0f}".format(payment.bioclean_tendered_amount) }} LBP{% else %}${{ "%.2f"|format(payment.bioclean_tendered_amount or payment.amount) }}{% endif %}</span>
+	</div>
+	{% endfor %}
+
+	{% set loyalty = get_loyalty_summary(doc.customer, doc.name) %}
+	{% if loyalty %}
+	<div style="border-top: 1px dashed #000; margin: 4px 0;"></div>
+	<div style="text-align: center; font-size: 9pt;">You earned {{ loyalty.points_earned }} points! Balance: {{ loyalty.balance }}</div>
+	{% endif %}
+
+	<div style="text-align: center; font-size: 8pt; margin-top: 6px;">Thank you for shopping at BioClean</div>
+</div>
