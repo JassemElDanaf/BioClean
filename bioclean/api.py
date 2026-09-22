@@ -25,6 +25,19 @@ from frappe import _
 
 
 @frappe.whitelist()
+def get_my_mode():
+	"""Which UI mode the current user lands in - role logic lives here, once,
+	server-side, rather than duplicated in the frontend. Cashier-only users
+	go straight to Cashier Mode with no way to see Boss Mode at all; anyone
+	with Store Manager or System Manager lands in Boss Mode by default with
+	a toggle to open Cashier Mode themselves."""
+	roles = frappe.get_roles()
+	if "Store Manager" in roles or "System Manager" in roles:
+		return {"default_mode": "boss", "can_switch": True}
+	return {"default_mode": "pos", "can_switch": False}
+
+
+@frappe.whitelist()
 def find_or_create_customer(phone, customer_name=None):
 	"""Fast phone-number lookup/creation for Cashier Mode checkout. Optional
 	step - a cashier can skip this entirely for an anonymous sale."""
@@ -133,6 +146,65 @@ def checkout(idempotency_key, items, payments, customer=None, warehouse="Stores 
 	si.submit()
 	frappe.db.commit()
 	return _checkout_result(si)
+
+
+@frappe.whitelist()
+def get_exchange_rate():
+	"""The persistent USD/LBP rate (BioClean Settings) - not a daily value,
+	just whatever's currently set, for the Cashier Mode currency toggle and
+	mixed-currency payment math."""
+	return frappe.get_single("BioClean Settings").usd_to_lbp_rate
+
+
+@frappe.whitelist()
+def get_pos_items(item_group=None, price_list="Retail", search=None):
+	"""Photo-grid data for Cashier Mode: item code/name/image + the price
+	from the given Price List, joined in one call rather than making the
+	frontend stitch together separate Item and Item Price REST calls."""
+	filters = {"disabled": 0}
+	if item_group:
+		filters["item_group"] = item_group
+	if search:
+		filters["item_name"] = ["like", f"%{search}%"]
+
+	items = frappe.get_all(
+		"Item",
+		filters=filters,
+		fields=["item_code", "item_name", "item_group", "image", "stock_uom"],
+		order_by="item_name",
+		limit_page_length=200,
+	)
+	prices = {
+		p.item_code: p.price_list_rate
+		for p in frappe.get_all(
+			"Item Price",
+			filters={"price_list": price_list, "item_code": ["in", [i.item_code for i in items]]},
+			fields=["item_code", "price_list_rate"],
+		)
+	}
+	for item in items:
+		item["rate"] = prices.get(item.item_code)
+	return items
+
+
+@frappe.whitelist()
+def lookup_by_barcode(barcode):
+	"""Checks the native Item barcode child table first (proper manufacturer
+	barcodes), then falls back to treating the scanned code as the item_code
+	itself (the confirmed 'item number = the barcode' path for
+	BioClean-generated labels)."""
+	barcode = (barcode or "").strip()
+	via_barcode_table = frappe.db.get_value("Item Barcode", {"barcode": barcode}, "parent")
+	item_code = via_barcode_table or (barcode if frappe.db.exists("Item", barcode) else None)
+	if not item_code:
+		return None
+	item = frappe.db.get_value(
+		"Item", item_code, ["item_code", "item_name", "item_group", "image", "stock_uom"], as_dict=True
+	)
+	item["rate"] = frappe.db.get_value(
+		"Item Price", {"item_code": item_code, "price_list": "Retail"}, "price_list_rate"
+	)
+	return item
 
 
 def _get_or_create_walk_in_customer():

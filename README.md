@@ -92,6 +92,41 @@ that does all of the above in one shot is a reasonable later addition; doing
 it by hand once is fine for now and makes every step visible while the setup
 is still young.
 
+### Frontend (Cashier Mode UI)
+
+The `frontend/` directory is a separate Vue 3 + frappe-ui app. It is **not**
+part of the Python app's install/migrate cycle — build it explicitly whenever
+you change it:
+
+```bash
+docker exec -it docker-frappe-1 bash
+cd /home/frappe/bench-workspace/frappe-bench/apps/bioclean/frontend
+npm install
+npm run build
+```
+
+This writes static assets into `bioclean/public/frontend/` (gitignored — built
+fresh, never committed, same principle as not committing compiled Python
+bytecode). Frappe serves the built app at `/bioclean` (see
+`website_route_rules` in `hooks.py` and `bioclean/www/bioclean.py`), proxying
+every deep link (`/bioclean/whatever`) back to the same `index.html` so Vue
+Router can handle client-side routing.
+
+For active frontend development with hot reload instead of rebuilding on
+every change, run `npm run dev` inside `frontend/` (Vite dev server on
+`:8080`, proxying `/app`, `/api`, `/assets`, `/files`, `/private` back to
+the bench on `:8000`) and browse to `http://localhost:8080` instead of
+through Frappe directly.
+
+**Note on Docker Desktop for Windows:** the bind mount between this repo and
+the container uses a 9p/drvfs bridge that has a known caching bug — a
+directory or file newly created by one process (e.g. the Vite build) is
+occasionally invisible to a *different* process/container instance until
+something reads/writes it from inside that same container. If assets 404
+right after a rebuild, `docker compose restart frappe` (or rebuild again
+from inside the same still-running container) before assuming it's a code
+bug.
+
 ## Production setup
 
 See `DEPLOY.md` — covers the host PC (Windows, Docker Engine under WSL2,

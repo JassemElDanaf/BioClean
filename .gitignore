@@ -9,6 +9,11 @@ node_modules/
 dist/
 .vite/
 
+# Frontend build output - built fresh from source (frontend/) on every
+# install/deploy, never committed, same principle as not committing
+# compiled Python bytecode.
+bioclean/public/frontend/
+
 # Frappe / bench artifacts (never live in this repo)
 frappe-bench/
 sites/
