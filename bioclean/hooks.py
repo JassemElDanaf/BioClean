@@ -1,3 +1,5 @@
+import frappe
+
 app_name = "bioclean"
 app_title = "BioClean"
 app_publisher = "BioClean Chemicals, LB"
@@ -11,15 +13,24 @@ app_license = "mit"
 # required_apps = []
 
 # Each item in the list will be shown as an app in the apps page
-# add_to_apps_screen = [
-# 	{
-# 		"name": "bioclean",
-# 		"logo": "/assets/bioclean/logo.png",
-# 		"title": "BioClean",
-# 		"route": "/bioclean",
-# 		"has_permission": "bioclean.api.permission.has_app_permission"
-# 	}
-# ]
+add_to_apps_screen = [
+	{
+		"name": "bioclean",
+		"logo": "/assets/bioclean/bioclean-logo.svg",
+		"title": "BioClean",
+		"route": "/bioclean",
+		"has_permission": "bioclean.hooks.has_app_permission",
+	}
+]
+
+
+def has_app_permission():
+	"""Any logged-in Desk user can see the BioClean tile in the app
+	switcher (found missing entirely - there was no click-through path
+	into the custom app from Desk itself, only a URL someone had to be
+	told). Role-based landing (Cashier -> register, Store Manager/System
+	Manager -> Boss Mode) still happens once inside, via get_my_mode()."""
+	return frappe.session.user != "Guest"
 
 # Includes in <head>
 # ------------------
