@@ -39,6 +39,7 @@ def after_install():
 	set_up_warehouses()
 	set_up_cost_centers()
 	set_up_price_lists()
+	set_up_item_groups()
 	set_up_sales_invoice_naming_series()
 	set_up_loyalty_program()
 	set_up_item_custom_fields()
@@ -323,6 +324,23 @@ def _apply_role_permissions(role_name, permissions):
 			("delete", delete),
 		):
 			update_permission_property(doctype, role_name, 0, prop, value)
+
+
+ITEM_GROUPS = ["Disposables", "Hygiene Paper", "Cleaning Tools", "Bags & Containers"]
+
+
+def set_up_item_groups():
+	"""Catalog taxonomy beyond the default "Products" group - BioClean carries
+	more than its own-brand chemicals (confirmed: disposables, hygiene paper/
+	dispensers, cleaning tools, bags & containers, per the fuller factory
+	catalogue). Structural, like the Warehouse/Cost Center trees, so it
+	belongs in after_install rather than being seeded per-item catalog data."""
+	for group_name in ITEM_GROUPS:
+		if not frappe.db.exists("Item Group", group_name):
+			ig = frappe.new_doc("Item Group")
+			ig.item_group_name = group_name
+			ig.parent_item_group = "All Item Groups"
+			ig.insert(ignore_permissions=True)
 
 
 def set_up_item_custom_fields():
