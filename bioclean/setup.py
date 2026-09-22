@@ -44,6 +44,7 @@ def after_install():
 	set_up_loyalty_program()
 	set_up_item_custom_fields()
 	set_up_roles()
+	set_up_pos_custom_fields()
 	frappe.db.commit()
 
 
@@ -355,5 +356,74 @@ def set_up_item_custom_fields():
 				"fieldtype": "Data",
 				"insert_after": "item_group",
 				"description": "Where this item sits in-store (aisle/shelf) - ERPNext's Warehouse is store-level, not shelf-level.",
+			},
+		)
+
+
+def set_up_pos_custom_fields():
+	"""Custom fields backing the Phase 3a POS API (bioclean/api.py):
+	- Customer needs a fast, directly-editable phone field for checkout
+	  lookup - the native `mobile_no` field is read-only, fetched from a
+	  linked Contact, not something a cashier can search/set in one step.
+	- Sales Invoice gets the idempotency key (unique, so a retried checkout
+	  request can never create a duplicate sale even under a race).
+	- Sales Invoice Payment (the POS payments child table) gets fields to
+	  record what was actually tendered in its original currency - the
+	  `amount` field itself always stays in the invoice's currency (USD) for
+	  correct accounting, but the receipt needs to show the real USD/LBP
+	  split the customer handed over.
+	"""
+	from frappe.custom.doctype.custom_field.custom_field import create_custom_field
+
+	if not frappe.db.exists("Custom Field", "Customer-bioclean_phone"):
+		create_custom_field(
+			"Customer",
+			{
+				"fieldname": "bioclean_phone",
+				"label": "Phone (POS Lookup)",
+				"fieldtype": "Data",
+				"insert_after": "customer_name",
+				"search_index": 1,
+				"description": "Fast phone-number lookup key for Cashier Mode checkout - separate from the Contact-derived Mobile No field.",
+			},
+		)
+
+	if not frappe.db.exists("Custom Field", "Sales Invoice-bioclean_idempotency_key"):
+		create_custom_field(
+			"Sales Invoice",
+			{
+				"fieldname": "bioclean_idempotency_key",
+				"label": "Idempotency Key",
+				"fieldtype": "Data",
+				"insert_after": "title",
+				"unique": 1,
+				"read_only": 1,
+				"no_copy": 1,
+				"description": "Client-generated key for the Phase 3a checkout API - a retried request with the same key can never create a duplicate invoice.",
+			},
+		)
+
+	if not frappe.db.exists("Custom Field", "Sales Invoice Payment-bioclean_tendered_currency"):
+		create_custom_field(
+			"Sales Invoice Payment",
+			{
+				"fieldname": "bioclean_tendered_currency",
+				"label": "Tendered Currency",
+				"fieldtype": "Select",
+				"options": "USD\nLBP",
+				"insert_after": "amount",
+				"description": "The currency actually handed over for this payment row - the amount field itself stays in the invoice's own currency (USD).",
+			},
+		)
+	if not frappe.db.exists("Custom Field", "Sales Invoice Payment-bioclean_tendered_amount"):
+		create_custom_field(
+			"Sales Invoice Payment",
+			{
+				"fieldname": "bioclean_tendered_amount",
+				"label": "Tendered Amount",
+				"fieldtype": "Float",
+				"precision": "2",
+				"insert_after": "bioclean_tendered_currency",
+				"description": "The actual amount tendered in bioclean_tendered_currency (e.g. 100000 for an LBP payment), before conversion to the invoice's USD amount.",
 			},
 		)
