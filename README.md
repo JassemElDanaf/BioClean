@@ -1,142 +1,134 @@
 # BioClean ERP
 
-Self-hosted ERPNext-based ERP/POS for BioClean. ERPNext (Frappe framework) handles
-accounting, inventory, and purchasing; this repo is the **`bioclean` custom Frappe
-app** built on top of it — POS UX, receipts, pricing, dashboards — kept separate
-from ERPNext core so upgrades never clobber custom work.
+Self-hosted ERP/POS for BioClean, built as a plain **React + FastAPI +
+PostgreSQL** stack (no framework like ERPNext underneath — everything here
+is custom, purpose-built for how BioClean actually operates).
 
-Full architecture/design decisions: see the project plan (referenced in this
-repo's issue tracker / kept by the project owner). This README + `DEPLOY.md`
-cover only what's needed to actually run the thing.
+## Stack
+
+- **Frontend**: React + TypeScript + Vite, React Router for per-tab URLs
+- **Backend**: FastAPI, SQLAlchemy, Alembic migrations
+- **Database**: PostgreSQL (via Docker)
 
 ## Repo layout
 
-This repo's root **is** the `bioclean` Frappe app itself — the same pattern
-official apps like Frappe Helpdesk/CRM use, so `bench get-app <this-repo-url>`
-just works.
-
 ```
 BioClean/
-├── bioclean/              # Python package: doctypes, hooks.py, api (the actual app)
-├── pyproject.toml         # Frappe app metadata
-├── frontend/              # Vue 3 + frappe-ui POS UI (added in Phase 3)
-├── docker/
-│   ├── apps.json          # erpnext + bioclean, pinned versions - see below
-│   ├── frappe_docker.pin  # exact frappe_docker commit this setup is built against
-│   ├── compose.yaml       # vendored base compose (production)
-│   ├── overrides/         # vendored compose overrides (mariadb, redis, backups, ...)
-│   ├── docker-compose.dev.yml  # dev stack (this repo bind-mounted straight into the bench)
-│   └── .env.example       # copy to .env, fill in secrets - never commit .env
-├── .github/workflows/deploy.yml  # staging-gated auto-deploy on merge to main
-├── DEPLOY.md              # host PC setup: auto-start, backups, remote access, rollback
-└── README.md              # this file
+├── backend/
+│   ├── app/
+│   │   ├── core/        # config, DB session - shared infra
+│   │   ├── items/       # Inventory: models, schemas, service, router
+│   │   ├── suppliers/
+│   │   ├── warehouses/
+│   │   ├── settings/    # admin-editable settings (USD→LBP rate, etc.)
+│   │   └── shared/      # cross-domain utilities (CSV export, currency)
+│   ├── alembic/         # migrations
+│   ├── seed.py          # seeds the real BioClean product catalogue
+│   └── requirements.txt
+├── frontend/
+│   └── src/
+│       ├── features/    # one folder per domain (inventory, reports, settings, ...)
+│       ├── tabs/         # thin per-route wrappers around features/
+│       ├── components/  # shared UI (Modal, ActionsMenu)
+│       └── lib/         # shared frontend utilities (API client, currency)
+└── docker/
+    └── docker-compose.yml   # Postgres only - backend/frontend run natively
 ```
 
-## Pinned versions
+**Why this structure**: each domain (Inventory today; Purchasing, POS,
+Invoicing, etc. as they're built) owns its own models/schemas/router on
+the backend and its own folder under `features/` on the frontend. Adding
+a new module means adding a new folder, not touching existing ones.
 
-No floating `latest` anywhere. Current pins:
+## Fresh setup (any machine)
 
-- **ERPNext**: `v16.35.0`
-- **Frappe framework**: `version-16` branch (tracks the same major version ERPNext is pinned to)
-- **frappe_docker**: commit in `docker/frappe_docker.pin`
-
-A version bump is a deliberate, reviewed change to these files — never a side effect of a routine deploy.
-
-## Dev setup (any machine with Docker + git)
-
-This is the whole setup — no separate `frappe_docker` clone needed, no manual
-bench install. Everything below runs the same way on a brand-new PC.
+**Prerequisites**: Docker Desktop, Python 3.12+, Node 20+.
 
 ```bash
 git clone https://github.com/JassemElDanaf/BioClean.git
 cd BioClean
-docker compose -f docker/docker-compose.dev.yml up -d
-```
 
-This starts MariaDB, Redis (cache + queue), and a `frappe/bench` container with
-this repo bind-mounted directly into `frappe-bench/apps/bioclean` — edits you
-make in this repo are picked up immediately inside the container, no rebuild.
+# 1. Database
+cd docker
+docker compose up -d
+cd ..
 
-Then, one-time bench setup inside the container:
+# 2. Backend
+cd backend
+python -m venv .venv
+./.venv/Scripts/activate        # Windows; use `source .venv/bin/activate` on macOS/Linux
+pip install -r requirements.txt
+python -m alembic upgrade head
+python seed.py                  # loads the real product catalogue - safe to re-run, skips if already seeded
+python -m uvicorn app.main:app --reload --port 3001
 
-```bash
-docker exec -it docker-frappe-1 bash
-
-# Inside the container:
-cd /home/frappe/bench-workspace
-bench init --frappe-branch version-16 --skip-redis-config-generation frappe-bench
-cd frappe-bench
-bench set-config -g db_host mariadb
-bench set-config -g redis_cache redis://redis-cache:6379
-bench set-config -g redis_queue redis://redis-queue:6379
-bench set-config -g redis_socketio redis://redis-queue:6379
-bench get-app --branch v16.35.0 erpnext
-bench new-site --mariadb-user-host-login-scope=% --db-root-password 123 \
-  --admin-password admin --install-app erpnext bioclean.localhost
-bench --site bioclean.localhost install-app bioclean
-bench --site bioclean.localhost set-config developer_mode 1
-bench start
-```
-
-Then visit `http://localhost:8000` with your browser's Host header set to
-`bioclean.localhost` (or add `127.0.0.1 bioclean.localhost` to your hosts
-file and visit `http://bioclean.localhost:8000` directly). Login as
-`Administrator` / `admin`.
-
-**Why this two-step dance (compose up, then bench init by hand) instead of one
-command?** `bench init` needs to happen once, interactively-ish, the first
-time. After that, `bench-data` (a Docker volume) holds the fully initialized
-bench permanently — `docker compose up -d` on a machine that's done this once
-already just starts the same bench back up. A from-scratch automation script
-that does all of the above in one shot is a reasonable later addition; doing
-it by hand once is fine for now and makes every step visible while the setup
-is still young.
-
-### Frontend (Cashier Mode UI)
-
-The `frontend/` directory is a separate Vue 3 + frappe-ui app. It is **not**
-part of the Python app's install/migrate cycle — build it explicitly whenever
-you change it:
-
-```bash
-docker exec -it docker-frappe-1 bash
-cd /home/frappe/bench-workspace/frappe-bench/apps/bioclean/frontend
+# 3. Frontend (separate terminal)
+cd frontend
 npm install
-npm run build
+npm run dev
 ```
 
-This writes static assets into `bioclean/public/frontend/` (gitignored — built
-fresh, never committed, same principle as not committing compiled Python
-bytecode). Frappe serves the built app at `/bioclean` (see
-`website_route_rules` in `hooks.py` and `bioclean/www/bioclean.py`), proxying
-every deep link (`/bioclean/whatever`) back to the same `index.html` so Vue
-Router can handle client-side routing.
+Visit **http://localhost:3000**. The frontend dev server proxies `/api`
+to the backend on port 3001 (see `frontend/vite.config.ts`) - the backend
+itself is never hit directly from the browser.
 
-For active frontend development with hot reload instead of rebuilding on
-every change, run `npm run dev` inside `frontend/` (Vite dev server on
-`:8080`, proxying `/app`, `/api`, `/assets`, `/files`, `/private` back to
-the bench on `:8000`) and browse to `http://localhost:8080` instead of
-through Frappe directly.
+Default Postgres credentials (dev only, see `docker/docker-compose.yml`):
+`bioclean` / `bioclean`, database `bioclean`.
 
-**Note on Docker Desktop for Windows:** the bind mount between this repo and
-the container uses a 9p/drvfs bridge that has a known caching bug — a
-directory or file newly created by one process (e.g. the Vite build) is
-occasionally invisible to a *different* process/container instance until
-something reads/writes it from inside that same container. If assets 404
-right after a rebuild, `docker compose restart frappe` (or rebuild again
-from inside the same still-running container) before assuming it's a code
-bug.
+## Database migrations
 
-## Production setup
+Every schema change is a real Alembic migration - never edit the schema
+by hand or rely on `create_all()`.
 
-See `DEPLOY.md` — covers the host PC (Windows, Docker Engine under WSL2,
-auto-start on boot/reboot), the self-hosted GitHub Actions runner, backups,
-remote access (Tailscale), and the rollback procedure.
+```bash
+cd backend
+python -m alembic revision --autogenerate -m "describe the change"
+# review the generated file in alembic/versions/ before applying -
+# autogenerate gets NOT NULL columns and data backfills wrong by default
+python -m alembic upgrade head
+```
 
-## Project rule
+## Remote access via Tailscale
 
-Use native ERPNext/Frappe doctypes, workflows, permissions, reports,
-accounting, and stock functionality wherever they already satisfy the
-requirement. BioClean-specific behavior belongs in this app. Never modify or
-fork ERPNext/Frappe core — if there's no clean extension mechanism for
-something, that's a signal to reconsider the approach, not to patch core.
+This dev setup is reachable from any other device on the same [Tailscale](https://tailscale.com)
+network (tailnet) - useful for continuing work from a second computer
+without re-cloning/re-seeding a whole separate database, or for showing
+someone else the running app.
+
+**One-time setup** (on whichever machine is actually running the backend/
+frontend/Postgres - call this the "host" machine):
+
+1. Install Tailscale and log in: `tailscale up`
+2. Note the machine's Tailscale hostname (`tailscale status` or the
+   Tailscale admin console) - it looks like `<name>.<tailnet>.ts.net`.
+   This project's current host resolves at `sp01b01zz7469j.tailb446a6.ts.net`.
+3. That hostname must be allow-listed in `frontend/vite.config.ts`'s
+   `server.allowedHosts` (Vite rejects unrecognized Host headers by
+   default) - it's already there for the hostname above; add your own if
+   it differs.
+
+**From a second machine**, once it's on the same tailnet (`tailscale up`
+there too): browse to `http://<host-machine-tailscale-hostname>:3000` -
+same app, same database, no separate setup needed. This only works while
+the host machine has Postgres, the backend, and the frontend dev server
+all actually running.
+
+**If you instead want a fully independent local copy** on the second
+machine (its own database, no dependency on the first machine being on),
+just run the "Fresh setup" steps above there instead - Tailscale isn't
+needed for that path.
+
+## Common gotchas
+
+- **Backend won't start / port already in use**: check for a stale
+  `uvicorn` process (`taskkill /F /IM python.exe` on Windows) before
+  restarting - a previous `--reload` process sometimes lingers.
+- **API calls return connection errors after the host machine sleeps/
+  restarts Docker**: the SQLAlchemy engine is configured with
+  `pool_pre_ping=True` specifically to recover from this (see
+  `backend/app/core/database.py`) - if it still happens, restart the
+  backend process.
+- **Docker/WSL2 memory**: if running on Windows with Docker Desktop's
+  WSL2 backend, its memory ceiling is controlled by `%UserProfile%\.wslconfig`,
+  not Docker Desktop's own settings UI. Changing it requires `wsl --shutdown`
+  followed by `docker compose up -d` in `docker/` to bring Postgres back up.

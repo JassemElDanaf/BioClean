@@ -1,30 +1,18 @@
-# Python
-__pycache__/
-*.py[cod]
-*.egg-info/
-.eggs/
-
 # Node
 node_modules/
 dist/
 .vite/
+*.tsbuildinfo
 
-# Frontend build output - built fresh from source (frontend/) on every
-# install/deploy, never committed, same principle as not committing
-# compiled Python bytecode.
-bioclean/public/frontend/
-
-# Frappe / bench artifacts (never live in this repo)
-frappe-bench/
-sites/
-*.log
+# Python
+__pycache__/
+*.py[cod]
+.venv/
 
 # Env / secrets
 .env
 .env.*
 !.env.example
-*.pem
-*.key
 
 # Editor / OS
 .vscode/
@@ -34,6 +22,3 @@ Thumbs.db
 
 # Claude Code local session/tooling state - not project source
 .claude/
-
-# Local scratch
-*.tmp
