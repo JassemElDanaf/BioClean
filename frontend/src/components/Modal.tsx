@@ -28,7 +28,7 @@ export default function Modal({
 			<div
 				style={{
 					background: "#fff",
-					borderRadius: 8,
+					borderRadius: 12,
 					padding: 24,
 					width: "min(480px, 90vw)",
 					maxHeight: "85vh",

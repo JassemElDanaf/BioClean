@@ -8,8 +8,9 @@ const REASON_LABELS: Record<string, string> = {
 	correction: "Manual correction",
 	damage: "Damaged / expired",
 	pos_sale: "POS sale",
+	pos_void: "POS sale voided",
 	invoice: "Invoice",
-	sale: "Sale",
+	invoice_void: "Invoice voided",
 	other: "Other",
 	manual: "Manual adjustment",
 };
@@ -26,8 +27,8 @@ export default function AuditReport() {
 	const [filters, setFilters] = useState<AuditFilters>({});
 
 	useEffect(() => {
-		Promise.all([listItems(), listWarehouses()]).then(([itemsData, warehousesData]) => {
-			setItems(itemsData);
+		Promise.all([listItems(), listWarehouses()]).then(([itemsResult, warehousesData]) => {
+			setItems(itemsResult.items);
 			setWarehouses(warehousesData);
 		});
 	}, []);
@@ -202,13 +203,13 @@ const thStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 13, color:
 const tdStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 14 };
 const inputStyle: React.CSSProperties = {
 	padding: "7px 10px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	fontSize: 13,
 };
 const presetButtonStyle: React.CSSProperties = {
 	padding: "8px 12px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	background: "#fff",
 	fontSize: 13,
@@ -217,7 +218,7 @@ const presetButtonStyle: React.CSSProperties = {
 };
 const secondaryButtonStyle: React.CSSProperties = {
 	padding: "8px 14px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	background: "#fff",
 	fontSize: 13,

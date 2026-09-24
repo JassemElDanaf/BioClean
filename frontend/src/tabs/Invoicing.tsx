@@ -1,3 +1,1 @@
-export default function Invoicing() {
-	return <div>Invoicing</div>;
-}
+export { default } from "../features/invoicing/InvoicingTab";

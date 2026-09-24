@@ -12,7 +12,14 @@ from app.core.database import Base
 # register on Base.metadata before autogenerate compares against it -
 # add one line per new domain (items, suppliers, warehouses today;
 # invoices, customers, etc. as they're built).
+from app.customers import models as customers_models  # noqa: F401
+from app.expenses import models as expenses_models  # noqa: F401
+from app.income import models as income_models  # noqa: F401
+from app.invoicing import models as invoicing_models  # noqa: F401
 from app.items import models as items_models  # noqa: F401
+from app.pos import models as pos_models  # noqa: F401
+from app.purchases import models as purchases_models  # noqa: F401
+from app.quotation import models as quotation_models  # noqa: F401
 from app.settings import models as app_settings_models  # noqa: F401
 from app.suppliers import models as suppliers_models  # noqa: F401
 from app.warehouses import models as warehouses_models  # noqa: F401

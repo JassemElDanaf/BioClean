@@ -8,6 +8,17 @@ dist/
 __pycache__/
 *.py[cod]
 .venv/
+.pytest_cache/
+
+# Uploaded item photos - user data, not source
+backend/uploads/
+
+# Generated document backup archive (PDFs/CSVs of real transactions) -
+# regenerated at runtime, and shouldn't hold real business data in git.
+/Documents/
+
+# Stray dev server logs
+*.log
 
 # Env / secrets
 .env

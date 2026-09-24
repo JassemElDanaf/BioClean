@@ -1,5 +1,7 @@
 import type { ComponentType } from "react";
 import InventoryAuditReport from "../inventory/AuditReport";
+import StockValuationReport from "../inventory/StockValuationReport";
+import FinancialSummaryReport from "./FinancialSummaryReport";
 
 export interface ReportDefinition {
 	key: string;
@@ -13,5 +15,7 @@ export interface ReportDefinition {
 // tab uses to list and switch between whichever reports exist. Adding a
 // new report later means adding one line here, not restructuring the tab.
 export const REPORTS: ReportDefinition[] = [
+	{ key: "financial-summary", label: "Financial Summary", component: FinancialSummaryReport },
+	{ key: "stock-valuation", label: "Stock Valuation", component: StockValuationReport },
 	{ key: "inventory-audit", label: "Inventory Audit", component: InventoryAuditReport },
 ];

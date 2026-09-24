@@ -5,8 +5,9 @@ math against ItemStock. Neither of those tabs exists yet, but the
 mechanism is ready for them to call into."""
 
 from fastapi import HTTPException
+from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
-from sqlalchemy.orm import Session
+from sqlalchemy.orm import Session, joinedload
 
 from ..core.config import settings
 from ..warehouses.models import Warehouse
@@ -22,6 +23,47 @@ def get_default_warehouse(db: Session) -> Warehouse:
 
 def total_stock(item: Item) -> float:
 	return float(sum(level.qty for level in item.stock_levels))
+
+
+def list_items(
+	db: Session,
+	skip: int = 0,
+	limit: int = 100,
+	q: str | None = None,
+	category: str | None = None,
+	low_stock: bool = False,
+) -> tuple[list[Item], int]:
+	"""Backs GET /items. `low_stock` is evaluated in Python (stock is a sum
+	across ItemStock rows, not a column SQL can filter on directly) - fine
+	at this app's real scale (one store's catalogue), same tradeoff
+	total_stock() already makes. `q`/`category` filter in SQL since those
+	are plain column matches. Returns (page, total_matching) so the caller
+	can tell the difference between "20 items exist" and "20 of 500 items
+	fit on this page"."""
+	# Counted and filtered *before* the joinedload below is applied -
+	# joinedload turns stock_levels into a LEFT JOIN, and counting or
+	# slicing on top of that would double-count/paginate wrong the moment
+	# an item has stock rows in more than one warehouse.
+	base = db.query(Item)
+	if q:
+		like = f"%{q}%"
+		base = base.filter(or_(Item.item_name.ilike(like), Item.barcode.ilike(like), Item.category.ilike(like)))
+	if category:
+		base = base.filter(Item.category == category)
+
+	with_relations = base.options(joinedload(Item.stock_levels)).order_by(Item.item_name)
+
+	if low_stock:
+		# Excludes zero-stock items on purpose - "Low Stock" and "Out of
+		# Stock" are mutually exclusive everywhere else this app shows them
+		# (see frontend StockBadge), so this filter has to agree or the
+		# Inventory "Low Stock" toggle would silently include items that are
+		# actually shown with an "Out of Stock" badge.
+		matching = [item for item in with_relations.all() if 0 < total_stock(item) <= float(item.reorder_level)]
+		return matching[skip : skip + limit], len(matching)
+
+	total = base.count()
+	return with_relations.offset(skip).limit(limit).all(), total
 
 
 def _get_or_create_stock_row(db: Session, item_id: int, warehouse_id: int) -> ItemStock:

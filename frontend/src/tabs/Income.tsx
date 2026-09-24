@@ -1,3 +1,1 @@
-export default function Income() {
-	return <div>Income</div>;
-}
+export { default } from "../features/income/IncomeTab";

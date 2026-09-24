@@ -132,7 +132,7 @@ const inputStyle: React.CSSProperties = {
 	width: "100%",
 	minWidth: 0,
 	padding: "8px 10px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	fontSize: 14,
 	boxSizing: "border-box",
@@ -140,7 +140,7 @@ const inputStyle: React.CSSProperties = {
 const toggleStyle: React.CSSProperties = {
 	flex: 1,
 	padding: "8px 10px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	background: "#fff",
 	cursor: "pointer",
@@ -156,7 +156,7 @@ const toggleActiveStyle: React.CSSProperties = {
 const submitButtonStyle: React.CSSProperties = {
 	marginTop: 8,
 	padding: "10px 16px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "none",
 	background: "var(--brand)",
 	color: "#fff",

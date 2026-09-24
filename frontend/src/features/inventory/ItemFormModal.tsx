@@ -1,18 +1,18 @@
 import { useState } from "react";
 import Modal from "../../components/Modal";
+import { ApiError } from "../../lib/api";
+import { uploadItemImage } from "./api";
 import type { Item, ItemFormValues } from "./types";
 
 const EMPTY: ItemFormValues = {
 	item_name: "",
 	category: "",
 	uom: "PCS",
-	shelf_location: "",
 	barcode: "",
 	cost_price: 0,
 	retail_price: 0,
 	wholesale_price: 0,
 	reorder_level: 10,
-	supplier_id: null,
 	initial_stock_qty: 0,
 };
 
@@ -20,11 +20,18 @@ export default function ItemFormModal({
 	open,
 	onClose,
 	onSubmit,
+	onImageChanged,
 	editing,
 }: {
 	open: boolean;
 	onClose: () => void;
-	onSubmit: (values: ItemFormValues) => Promise<void>;
+	// Returns the created/updated item - needed on create so a picked-but-
+	// not-yet-uploaded photo has an item id to upload against once this
+	// resolves (a new item has no id to upload to beforehand).
+	onSubmit: (values: ItemFormValues) => Promise<Item>;
+	// Image upload saves independently of the rest of the form. The parent
+	// reloads its list off this rather than off onSubmit.
+	onImageChanged: () => void;
 	editing: Item | null;
 }) {
 	// The parent passes a `key` that changes per edited item, which forces
@@ -36,9 +43,42 @@ export default function ItemFormModal({
 	const [values, setValues] = useState<ItemFormValues>(editing ? toFormValues(editing) : EMPTY);
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
+	const [imageUrl, setImageUrl] = useState<string | null>(editing?.image_url ?? null);
+	// Only meaningful while creating (no item id yet to upload to) - picked
+	// now, uploaded right after the item is created in handleSubmit below.
+	const [pendingFile, setPendingFile] = useState<File | null>(null);
+	const [pendingPreview, setPendingPreview] = useState<string | null>(null);
+	const [uploading, setUploading] = useState(false);
+	const [imageError, setImageError] = useState<string | null>(null);
 
 	function field<K extends keyof ItemFormValues>(key: K, value: ItemFormValues[K]) {
 		setValues((v) => ({ ...v, [key]: value }));
+	}
+
+	async function handleImageChange(e: React.ChangeEvent<HTMLInputElement>) {
+		const file = e.target.files?.[0];
+		e.target.value = "";
+		if (!file) return;
+		setImageError(null);
+
+		if (editing) {
+			setUploading(true);
+			try {
+				const updated = await uploadItemImage(editing.id, file);
+				setImageUrl(updated.image_url);
+				onImageChanged();
+			} catch (err) {
+				setImageError(err instanceof ApiError ? err.message : "Couldn't upload this image.");
+			} finally {
+				setUploading(false);
+			}
+		} else {
+			setPendingFile(file);
+			setPendingPreview((prev) => {
+				if (prev) URL.revokeObjectURL(prev);
+				return URL.createObjectURL(file);
+			});
+		}
 	}
 
 	async function handleSubmit(e: React.FormEvent) {
@@ -46,8 +86,20 @@ export default function ItemFormModal({
 		setSaving(true);
 		setError(null);
 		try {
-			await onSubmit(values);
+			const item = await onSubmit(values);
+			if (pendingFile) {
+				try {
+					await uploadItemImage(item.id, pendingFile);
+					onImageChanged();
+				} catch (err) {
+					// The item itself was created successfully - only the photo
+					// failed, so don't block the modal from closing over this.
+					setImageError(err instanceof ApiError ? err.message : "Item saved, but the photo upload failed.");
+				}
+			}
 			setValues(EMPTY);
+			setPendingFile(null);
+			setPendingPreview(null);
 			onClose();
 		} catch (err) {
 			setError(err instanceof Error ? err.message : "Something went wrong");
@@ -55,6 +107,8 @@ export default function ItemFormModal({
 			setSaving(false);
 		}
 	}
+
+	const photoSrc = editing ? imageUrl : pendingPreview;
 
 	return (
 		<Modal open={open} onClose={onClose} title={editing ? "Edit Item" : "Add Item"}>
@@ -79,9 +133,22 @@ export default function ItemFormModal({
 						</select>
 					</Field>
 				</div>
-				<Field label="Shelf Location">
-					<input value={values.shelf_location} onChange={(e) => field("shelf_location", e.target.value)} style={inputStyle} />
+
+				<Field label="Photo">
+					<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+						{photoSrc ? (
+							<img src={photoSrc} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6 }} />
+						) : (
+							<div style={{ width: 40, height: 40, borderRadius: 6, background: "var(--neutral-100)", display: "flex", alignItems: "center", justifyContent: "center" }}>
+								📦
+							</div>
+						)}
+						<input type="file" accept="image/png,image/jpeg,image/webp" onChange={handleImageChange} disabled={uploading} style={{ fontSize: 13 }} />
+						{uploading && <span style={{ fontSize: 12, color: "var(--neutral-500)" }}>Uploading...</span>}
+					</div>
+					{imageError && <div style={{ color: "crimson", fontSize: 13, marginTop: 4 }}>{imageError}</div>}
 				</Field>
+
 				<div style={gridStyle(3)}>
 					<Field label="Cost Price">
 						<input type="number" step="0.01" value={values.cost_price} onChange={(e) => field("cost_price", Number(e.target.value))} style={inputStyle} />
@@ -114,16 +181,14 @@ export function toFormValues(item: Item): ItemFormValues {
 		item_name: item.item_name,
 		category: item.category ?? "",
 		uom: item.uom,
-		shelf_location: item.shelf_location ?? "",
 		barcode: item.barcode,
 		cost_price: item.cost_price,
 		retail_price: item.retail_price,
 		wholesale_price: item.wholesale_price,
-		// Not editable in this form (confirmed: don't need per-item
-		// reorder tuning or a supplier picker right now) - carried through
-		// silently so saving an edit doesn't reset them to a default.
+		// reorder_level isn't editable in this form (confirmed: don't need
+		// per-item reorder tuning right now) - carried through silently so
+		// saving an edit doesn't reset it to a default.
 		reorder_level: item.reorder_level,
-		supplier_id: item.supplier_id,
 		initial_stock_qty: 0,
 	};
 }
@@ -149,7 +214,7 @@ const inputStyle: React.CSSProperties = {
 	width: "100%",
 	minWidth: 0,
 	padding: "8px 10px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	fontSize: 14,
 	boxSizing: "border-box",
@@ -158,7 +223,7 @@ const inputStyle: React.CSSProperties = {
 const submitButtonStyle: React.CSSProperties = {
 	marginTop: 8,
 	padding: "10px 16px",
-	borderRadius: 6,
+	borderRadius: 8,
 	border: "none",
 	background: "var(--brand)",
 	color: "#fff",

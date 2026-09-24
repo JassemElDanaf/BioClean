@@ -1,3 +1,1 @@
-export default function POS() {
-	return <div>POS</div>;
-}
+export { default } from "../features/pos/POSTab";

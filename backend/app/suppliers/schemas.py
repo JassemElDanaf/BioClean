@@ -1,13 +1,17 @@
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
 
 
 class SupplierBase(BaseModel):
-	name: str
+	name: str = Field(min_length=1)
 	phone: str | None = None
 	email: str | None = None
 
 
 class SupplierCreate(SupplierBase):
+	pass
+
+
+class SupplierUpdate(SupplierBase):
 	pass
 
 

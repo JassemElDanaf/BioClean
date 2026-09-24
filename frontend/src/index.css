@@ -1,10 +1,23 @@
 :root {
-	--brand: #2e7d32;
-	--brand-light: #9acd32;
+	--brand: #1e5f36;
+	--brand-dark: #164a29;
+	/* Pale mint - product image placeholders, badge fills, active-nav fill.
+	   Distinct from --neutral-100 (which is a neutral gray) - this one's
+	   deliberately tinted green so it reads as "brand accent", not "muted". */
+	--brand-pale: #e6f4ea;
+	--neutral-50: #fafafa;
 	--neutral-100: #f5f5f5;
 	--neutral-200: #e0e0e0;
+	--neutral-300: #cfcfcf;
 	--neutral-500: #757575;
 	--neutral-900: #212121;
+	/* Single source of truth for the app's typeface - every element should
+	   reference this token rather than hardcoding a font stack, the same
+	   way colors go through --brand/--neutral-* instead of raw hex.
+	   Inter is loaded in index.html; falls back to the OS system font if
+	   that request ever fails (offline dev, blocked network) rather than
+	   hard-failing to a serif. */
+	--font-sans: "Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
 }
 
 * {
@@ -13,9 +26,20 @@
 
 body {
 	margin: 0;
-	font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Roboto, sans-serif;
-	background: var(--neutral-100);
+	font-family: var(--font-sans);
+	background: var(--neutral-50);
 	color: var(--neutral-900);
+}
+
+/* Form controls don't inherit font-family from the page by default in any
+   browser - they use the OS UI font regardless of what `body` sets. Since
+   this app is almost entirely inputs/buttons/selects, skipping this would
+   mean only headings and plain text actually render in Inter. */
+button,
+input,
+select,
+textarea {
+	font-family: inherit;
 }
 
 /* Used by ActionsMenu - inline styles alone can't express :hover */

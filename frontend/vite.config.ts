@@ -4,11 +4,12 @@ import react from "@vitejs/plugin-react";
 export default defineConfig({
 	plugins: [react()],
 	server: {
-		host: "127.0.0.1",
+		host: true,
 		port: 3000,
-		allowedHosts: ["sp01b01zz7469j.tailb446a6.ts.net"],
+		allowedHosts: ["sp01b01zz7469j.tailb446a6.ts.net", "jassem.tailb446a6.ts.net"],
 		proxy: {
 			"/api": "http://127.0.0.1:3001",
+			"/uploads": "http://127.0.0.1:3001",
 		},
 	},
 });

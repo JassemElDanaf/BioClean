@@ -20,9 +20,6 @@ class Item(Base):
 	item_name = Column(String, nullable=False)
 	category = Column(String, nullable=True, index=True)
 	uom = Column(String, nullable=False, default="PCS")
-	# Physical shelf/aisle position - items get physically placed on
-	# numbered shelves in-store, separate from any digital category.
-	shelf_location = Column(String, nullable=True)
 	# The sole identifier - what's scanned or typed to find an item.
 	# There used to be a separate "item code" alongside this; merged into
 	# one field (confirmed decision) since keeping two overlapping unique
@@ -39,11 +36,9 @@ class Item(Base):
 	retail_price = Column(Numeric(12, 2), nullable=False, default=0)
 	wholesale_price = Column(Numeric(12, 2), nullable=False, default=0)
 	reorder_level = Column(Numeric(12, 2), nullable=False, default=10)
-	supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
 	created_at = Column(DateTime(timezone=True), server_default=func.now())
 	updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
-	supplier = relationship("Supplier")
 	stock_levels = relationship("ItemStock", back_populates="item", cascade="all, delete-orphan")
 	# Deleting an item is only allowed (see service.is_safe_to_delete) when
 	# it has no real movement history and no stock on hand - this cascade

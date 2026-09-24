@@ -1,11 +1,19 @@
+import os
+import uuid
 from datetime import date, datetime, time
 
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, File, HTTPException, Query, Response, UploadFile
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.database import get_db
 from ..shared.export import to_csv_response
 from . import models, schemas, service
+
+# Uploaded item photos land here, served back out via the /uploads static
+# mount in main.py - see upload_item_image() below.
+UPLOAD_DIR = os.path.join(os.path.dirname(os.path.dirname(os.path.dirname(__file__))), "uploads", "items")
+MAX_IMAGE_BYTES = 5 * 1024 * 1024
+ALLOWED_IMAGE_TYPES = {"image/png": ".png", "image/jpeg": ".jpg", "image/webp": ".webp"}
 
 router = APIRouter(prefix="/items", tags=["items"])
 
@@ -17,7 +25,6 @@ EXPORT_COLUMNS = [
 	"Barcode",
 	"Category",
 	"UOM",
-	"Shelf Location",
 	"Cost Price",
 	"Retail Price",
 	"Wholesale Price",
@@ -31,7 +38,6 @@ def _to_out(item: models.Item) -> schemas.ItemOut:
 		**{field: getattr(item, field) for field in schemas.ItemBase.model_fields},
 		id=item.id,
 		stock_qty=service.total_stock(item),
-		supplier_name=item.supplier.name if item.supplier else None,
 		created_at=item.created_at,
 		updated_at=item.updated_at,
 	)
@@ -43,7 +49,6 @@ def _export_row(item: models.Item) -> dict:
 		item.barcode,
 		item.category,
 		item.uom,
-		item.shelf_location,
 		item.cost_price,
 		item.retail_price,
 		item.wholesale_price,
@@ -54,12 +59,23 @@ def _export_row(item: models.Item) -> dict:
 
 
 def _query_with_relations(db: Session):
-	return db.query(models.Item).options(joinedload(models.Item.supplier), joinedload(models.Item.stock_levels))
+	return db.query(models.Item).options(joinedload(models.Item.stock_levels))
 
 
 @router.get("", response_model=list[schemas.ItemOut])
-def list_items(skip: int = 0, limit: int = 100, db: Session = Depends(get_db)):
-	items = _query_with_relations(db).order_by(models.Item.item_name).offset(skip).limit(limit).all()
+def list_items(
+	response: Response,
+	skip: int = 0,
+	limit: int = Query(default=200, le=2000),
+	q: str | None = None,
+	category: str | None = None,
+	low_stock: bool = False,
+	db: Session = Depends(get_db),
+):
+	items, total = service.list_items(db, skip=skip, limit=limit, q=q, category=category, low_stock=low_stock)
+	# Lets the frontend tell "everything fits on one page" apart from
+	# "there are more than `limit` matches" without a second request.
+	response.headers["X-Total-Count"] = str(total)
 	return [_to_out(item) for item in items]
 
 
@@ -212,6 +228,43 @@ def update_item(item_id: int, payload: schemas.ItemUpdate, db: Session = Depends
 		setattr(item, field, value)
 	db.commit()
 	db.refresh(item)
+	return _to_out(item)
+
+
+@router.post("/{item_id}/image", response_model=schemas.ItemOut)
+async def upload_item_image(item_id: int, file: UploadFile = File(...), db: Session = Depends(get_db)):
+	item = db.get(models.Item, item_id)
+	if not item:
+		raise HTTPException(status_code=404, detail="Item not found")
+
+	ext = ALLOWED_IMAGE_TYPES.get(file.content_type)
+	if not ext:
+		raise HTTPException(status_code=400, detail="Unsupported image type - use PNG, JPEG, or WEBP")
+
+	content = await file.read()
+	if len(content) > MAX_IMAGE_BYTES:
+		raise HTTPException(status_code=400, detail="Image too large (max 5MB)")
+
+	os.makedirs(UPLOAD_DIR, exist_ok=True)
+	filename = f"{item_id}-{uuid.uuid4().hex[:8]}{ext}"
+	with open(os.path.join(UPLOAD_DIR, filename), "wb") as f:
+		f.write(content)
+
+	# Old file is no longer referenced by anything once image_url moves on -
+	# clean it up rather than letting replaced photos pile up on disk forever.
+	old_url = item.image_url
+	item.image_url = f"/uploads/items/{filename}"
+	db.commit()
+	db.refresh(item)
+
+	if old_url and old_url.startswith("/uploads/items/"):
+		old_path = os.path.join(UPLOAD_DIR, os.path.basename(old_url))
+		if os.path.exists(old_path):
+			try:
+				os.remove(old_path)
+			except OSError:
+				pass
+
 	return _to_out(item)
 
 

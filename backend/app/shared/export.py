@@ -15,8 +15,19 @@ and imports cleanly into any other accounting tool."""
 
 import csv
 import io
+from datetime import datetime
 
 from fastapi.responses import StreamingResponse
+
+from .archive import archive_document
+
+# "pos_sales" -> "POS Sales" - everything else just title-cases cleanly
+# ("items" -> "Items", "purchase_orders" -> "Purchase Orders").
+_LABEL_OVERRIDES = {"pos_sales": "POS Sales"}
+
+
+def _human_label(filename: str) -> str:
+	return _LABEL_OVERRIDES.get(filename, filename.replace("_", " ").title())
 
 
 def to_csv_response(rows: list[dict], filename: str) -> StreamingResponse:
@@ -25,9 +36,16 @@ def to_csv_response(rows: list[dict], filename: str) -> StreamingResponse:
 		writer = csv.DictWriter(buffer, fieldnames=list(rows[0].keys()))
 		writer.writeheader()
 		writer.writerows(rows)
-	buffer.seek(0)
+	content = buffer.getvalue()
+
+	# Every export is a dated snapshot, not a single document with an id to
+	# overwrite on regen (unlike the PDFs) - timestamped filename so two
+	# exports on the same day both survive in the archive.
+	now = datetime.now()
+	archive_document(f"Exports/{_human_label(filename)}", now, f"{filename}_{now.strftime('%H%M%S')}.csv", content.encode("utf-8"))
+
 	return StreamingResponse(
-		iter([buffer.getvalue()]),
+		iter([content]),
 		media_type="text/csv",
 		headers={"Content-Disposition": f'attachment; filename="{filename}.csv"'},
 	)

@@ -1,5 +1,5 @@
 import { useEffect, useState } from "react";
-import { getExchangeRate } from "../features/settings/api";
+import { getExchangeRate, getTaxRate } from "../features/settings/api";
 
 // Every price everywhere is stored/entered in USD. This is the one hook
 // any feature (Inventory today; POS/Invoicing later) uses to get the
@@ -10,6 +10,18 @@ export function useExchangeRate() {
 
 	useEffect(() => {
 		getExchangeRate().then((r) => setRate(r.usd_to_lbp_rate));
+	}, []);
+
+	return rate;
+}
+
+// Percentage (7 means 7%) - zero for any install that hasn't set one in
+// Settings, so nothing charges tax nobody configured.
+export function useTaxRate() {
+	const [rate, setRate] = useState<number>(0);
+
+	useEffect(() => {
+		getTaxRate().then((r) => setRate(r.tax_rate));
 	}, []);
 
 	return rate;

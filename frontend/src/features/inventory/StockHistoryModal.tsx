@@ -9,7 +9,9 @@ const REASON_LABELS: Record<string, string> = {
 	correction: "Manual count correction",
 	damage: "Damaged / expired",
 	pos_sale: "POS sale",
+	pos_void: "POS sale voided",
 	invoice: "Invoice",
+	invoice_void: "Invoice voided",
 	other: "Other",
 	manual: "Manual adjustment",
 };

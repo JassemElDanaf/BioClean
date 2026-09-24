@@ -1,3 +1,1 @@
-export default function Customers() {
-	return <div>Customers</div>;
-}
+export { default } from "../features/customers/CustomersTab";

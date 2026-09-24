@@ -1,3 +1,1 @@
-export default function Expenses() {
-	return <div>Expenses</div>;
-}
+export { default } from "../features/expenses/ExpensesTab";

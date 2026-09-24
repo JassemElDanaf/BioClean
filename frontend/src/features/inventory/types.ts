@@ -3,15 +3,12 @@ export interface Item {
 	item_name: string;
 	category: string | null;
 	uom: string;
-	shelf_location: string | null;
 	barcode: string;
 	image_url: string | null;
 	cost_price: number;
 	retail_price: number;
 	wholesale_price: number;
 	reorder_level: number;
-	supplier_id: number | null;
-	supplier_name: string | null;
 	stock_qty: number;
 	created_at: string;
 	updated_at: string;
@@ -21,16 +18,14 @@ export interface ItemFormValues {
 	item_name: string;
 	category: string;
 	uom: string;
-	shelf_location: string;
 	barcode: string;
 	cost_price: number;
 	retail_price: number;
 	wholesale_price: number;
-	// Not shown in the form (confirmed: don't need to set these per item
-	// at creation time) but still carried through create/edit round-trips
-	// so they don't get silently reset to a default on every save.
+	// Reorder level isn't shown in the form (confirmed: don't need to tune
+	// this per item today) but is still carried through create/edit
+	// round-trips so saving an edit doesn't silently reset it to a default.
 	reorder_level: number;
-	supplier_id: number | null;
 	initial_stock_qty: number;
 }
 
@@ -39,6 +34,12 @@ export interface Supplier {
 	name: string;
 	phone: string | null;
 	email: string | null;
+}
+
+export interface SupplierFormValues {
+	name: string;
+	phone: string;
+	email: string;
 }
 
 export interface StockMovement {
