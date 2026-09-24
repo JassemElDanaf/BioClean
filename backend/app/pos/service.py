@@ -14,7 +14,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..items import service as items_service
 from ..items.models import Item
 from ..shared.currency import get_or_create_settings
-from .models import Sale, SaleLine
+from .models import Return, ReturnLine, Sale, SaleLine
 
 
 def checkout(
@@ -125,16 +125,28 @@ def checkout(
 def void_sale(db: Session, sale: Sale) -> Sale:
 	"""Restoring stock (positive delta) can never fail the way removing it
 	can, so - unlike checkout - there's no partial-failure case to guard
-	against here."""
+	against here.
+
+	Only restores what's still actually outstanding on each line - if 2 of
+	5 sold units were already returned (see create_return()), those 2 are
+	already back in stock, and voiding must only restore the remaining 3.
+	Restoring the full original line.qty regardless would double-count the
+	already-returned portion and inflate stock above what was ever really
+	on hand."""
 	if sale.voided:
 		raise HTTPException(status_code=409, detail="Sale is already voided")
 
 	for line in sale.lines:
+		already_returned = db.query(ReturnLine).filter(ReturnLine.sale_line_id == line.id).with_entities(ReturnLine.qty).all()
+		already_returned_qty = sum(float(q[0]) for q in already_returned)
+		restore_qty = float(line.qty) - already_returned_qty
+		if restore_qty <= 0:
+			continue
 		item = db.get(Item, line.item_id)
 		items_service.adjust_stock(
 			db,
 			item,
-			float(line.qty),
+			restore_qty,
 			warehouse_id=sale.warehouse_id,
 			reason="pos_void",
 			reference=f"SALE-{sale.id}-void",
@@ -147,6 +159,84 @@ def void_sale(db: Session, sale: Sale) -> Sale:
 	db.commit()
 	db.refresh(sale)
 	return sale
+
+
+def create_return(
+	db: Session,
+	sale: Sale,
+	lines: list[dict],
+	refund_method: str,
+	reason: str | None,
+) -> Return:
+	"""Never touches the original Sale/SaleLine rows (see Return's
+	docstring) - restores stock for exactly the returned quantity through
+	the same adjust_stock() every other stock movement goes through, and
+	is atomic the same way checkout() is: nothing commits until every line
+	clears validation, so a bad line 2 of 3 can't leave line 1's stock
+	already restored."""
+	if sale.voided:
+		raise HTTPException(status_code=409, detail="Can't return items from a voided sale - it was already fully reversed")
+
+	sale_line_by_id = {line.id: line for line in sale.lines}
+
+	ret = Return(sale_id=sale.id, refund_method=refund_method, total_refund=0, reason=reason)
+	db.add(ret)
+	db.flush()  # assigns ret.id, used below as the StockMovement.reference
+
+	total_refund = 0.0
+	for line in lines:
+		sale_line = sale_line_by_id.get(line["sale_line_id"])
+		if not sale_line:
+			raise HTTPException(status_code=404, detail=f"Sale line {line['sale_line_id']} not found on this sale")
+
+		already_returned = (
+			db.query(ReturnLine).filter(ReturnLine.sale_line_id == sale_line.id).with_entities(ReturnLine.qty).all()
+		)
+		already_returned_qty = sum(float(q[0]) for q in already_returned)
+		remaining = float(sale_line.qty) - already_returned_qty
+		qty = line["qty"]
+		if qty > remaining:
+			raise HTTPException(
+				status_code=409,
+				detail=f"Can't return {qty:g} of '{sale_line.item_name}' - only {remaining:g} remaining (of {float(sale_line.qty):g} sold)",
+			)
+
+		item = db.get(Item, sale_line.item_id)
+		items_service.adjust_stock(
+			db,
+			item,
+			qty,
+			warehouse_id=sale.warehouse_id,
+			reason="return",
+			reference=f"SALE-{sale.id}-return-{ret.id}",
+			commit=False,
+		)
+
+		line_refund = qty * float(sale_line.unit_price)
+		db.add(
+			ReturnLine(
+				return_id=ret.id,
+				sale_line_id=sale_line.id,
+				item_id=sale_line.item_id,
+				item_name=sale_line.item_name,
+				barcode=sale_line.barcode,
+				qty=qty,
+				unit_price=sale_line.unit_price,
+				line_refund=line_refund,
+			)
+		)
+		total_refund += line_refund
+
+	ret.total_refund = total_refund
+	sale.returned_total = float(sale.returned_total) + total_refund
+	sale.pdf_data = None  # stale - cached receipt doesn't reflect the return
+	db.commit()
+	db.refresh(ret)
+	return ret
+
+
+def list_returns(db: Session, sale: Sale) -> list[Return]:
+	return db.query(Return).options(joinedload(Return.lines)).filter(Return.sale_id == sale.id).order_by(Return.created_at.desc()).all()
 
 
 def list_sales(
@@ -192,3 +282,16 @@ def get_sale_receipt_pdf(db: Session, sale: Sale) -> bytes:
 	archive_document("Receipts", sale.created_at, f"receipt-{sale.id}.pdf", pdf_bytes)
 	db.commit()
 	return pdf_bytes
+
+
+def print_sale_receipt(db: Session, sale: Sale) -> None:
+	"""Sends the sale to the physical thermal receipt printer configured in
+	Settings. Deliberately has nothing to roll back and touches no Sale
+	field - a print failure (printer off, unconfigured, out of paper) is
+	never allowed to look like the sale itself failed. Raises PrinterError
+	on any problem; the router turns that into a 502 without touching the
+	Sale row at all."""
+	from .escpos_receipt import print_receipt
+
+	settings = get_or_create_settings(db)
+	print_receipt(sale, settings)

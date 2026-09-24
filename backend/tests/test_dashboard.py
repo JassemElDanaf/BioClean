@@ -2,6 +2,8 @@ ITEMS_URL = "/api/v1/items"
 INVOICES_URL = "/api/v1/invoices"
 SALES_URL = "/api/v1/pos/sales"
 DASHBOARD_URL = "/api/v1/dashboard"
+EXPENSES_URL = "/api/v1/expenses"
+INCOME_URL = "/api/v1/income"
 
 
 def make_item(client, **overrides):
@@ -81,3 +83,38 @@ def test_inventory_value_matches_qty_times_cost(client):
 	make_item(client, cost_price=3.0, initial_stock_qty=10)
 	summary = client.get(f"{DASHBOARD_URL}/summary").json()
 	assert summary["total_inventory_value"] == 30.0
+
+
+def test_return_reduces_revenue_and_cogs(client):
+	"""A return isn't real revenue for the returned portion any more (see
+	pos/service.py:create_return()) - the Dashboard has to net it out or
+	Total Revenue would keep counting money that was actually refunded."""
+	item = make_item(client, cost_price=2.0)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 5}]}).json()
+	line_id = sale["lines"][0]["id"]
+
+	summary_before = client.get(f"{DASHBOARD_URL}/summary").json()
+	assert summary_before["sales_revenue"] == 25.0  # 5 * $5
+	assert summary_before["cogs"] == 10.0  # 5 * $2
+
+	client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": line_id, "qty": 2}]})
+
+	summary_after = client.get(f"{DASHBOARD_URL}/summary").json()
+	assert summary_after["sales_revenue"] == 15.0  # 25 - (2 * $5)
+	assert summary_after["cogs"] == 6.0  # (5 - 2) * $2
+	assert summary_after["total_revenue"] == 15.0
+	assert summary_after["gross_profit"] == 9.0
+
+
+def test_manual_income_and_expenses_feed_net_profit(client):
+	item = make_item(client, cost_price=2.0)
+	client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 1}]})  # $5 revenue, $2 cogs
+	client.post(INCOME_URL, json={"source": "Bank Interest", "amount": 50.0})
+	client.post(EXPENSES_URL, json={"category": "Rent", "amount": 20.0})
+
+	summary = client.get(f"{DASHBOARD_URL}/summary").json()
+	assert summary["manual_income"] == 50.0
+	assert summary["expenses_total"] == 20.0
+	assert summary["total_revenue"] == 55.0  # 5 sales + 50 manual income
+	assert summary["gross_profit"] == 53.0  # 55 - 2 cogs
+	assert summary["net_profit"] == 33.0  # 53 - 20 expenses

@@ -6,6 +6,9 @@ export interface Customer {
 	address: string | null;
 	is_wholesale: boolean;
 	created_at: string;
+	// Accounts receivable - sum of this customer's unpaid invoice totals,
+	// computed by the backend (never editable here).
+	balance: number;
 }
 
 export interface CustomerFormValues {

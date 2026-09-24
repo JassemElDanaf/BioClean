@@ -23,7 +23,6 @@ BioClean/
 │   │   ├── settings/    # admin-editable settings (USD→LBP rate, etc.)
 │   │   └── shared/      # cross-domain utilities (CSV export, currency)
 │   ├── alembic/         # migrations
-│   ├── seed.py          # seeds the real BioClean product catalogue
 │   └── requirements.txt
 ├── frontend/
 │   └── src/
@@ -59,7 +58,6 @@ python -m venv .venv
 ./.venv/Scripts/activate        # Windows; use `source .venv/bin/activate` on macOS/Linux
 pip install -r requirements.txt
 python -m alembic upgrade head
-python seed.py                  # loads the real product catalogue - safe to re-run, skips if already seeded
 python -m uvicorn app.main:app --reload --port 3001
 
 # 3. Frontend (separate terminal)
@@ -74,6 +72,12 @@ itself is never hit directly from the browser.
 
 Default Postgres credentials (dev only, see `docker/docker-compose.yml`):
 `bioclean` / `bioclean`, database `bioclean`.
+
+A fresh database starts with **zero items** - there is deliberately no
+seed script. This app now holds BioClean's real inventory; a script that
+auto-populates a demo catalogue whenever the table is empty is exactly
+the kind of thing that silently overwrites real data after a legitimate
+cleanup. Add items by hand through the Inventory tab.
 
 ## Database migrations
 
@@ -92,7 +96,7 @@ python -m alembic upgrade head
 
 This dev setup is reachable from any other device on the same [Tailscale](https://tailscale.com)
 network (tailnet) - useful for continuing work from a second computer
-without re-cloning/re-seeding a whole separate database, or for showing
+without re-cloning/re-setting-up a whole separate database, or for showing
 someone else the running app.
 
 **One-time setup** (on whichever machine is actually running the backend/

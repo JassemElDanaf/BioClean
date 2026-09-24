@@ -21,7 +21,7 @@ class PurchaseOrderLineOut(BaseModel):
 	model_config = ConfigDict(from_attributes=True)
 
 	id: int
-	item_id: int
+	item_id: int | None = None
 	item_name: str
 	barcode: str
 	qty: float
@@ -31,11 +31,12 @@ class PurchaseOrderLineOut(BaseModel):
 
 class PurchaseOrderOut(BaseModel):
 	id: int
-	supplier_id: int
+	supplier_id: int | None = None
 	supplier_name: str | None = None
 	warehouse_id: int
 	total: float
 	status: str
+	payment_status: str
 	notes: str | None = None
 	user: str
 	created_at: datetime

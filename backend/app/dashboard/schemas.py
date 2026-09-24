@@ -8,10 +8,13 @@ class DashboardSummary(BaseModel):
 	sales_revenue: float
 	sales_count: int
 	invoice_revenue: float
+	manual_income: float
 	total_revenue: float
 	average_sale: float
 	cogs: float
 	gross_profit: float
+	expenses_total: float
+	net_profit: float
 	low_stock_count: int
 	out_of_stock_count: int
 	total_items: int

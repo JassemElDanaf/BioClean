@@ -1,6 +1,25 @@
 SETTINGS_URL = "/api/v1/settings"
 
 
+def test_lbp_rounding_defaults_to_1000(client):
+	res = client.get(f"{SETTINGS_URL}/exchange-rate")
+	assert res.status_code == 200
+	assert res.json()["lbp_rounding"] == 1000
+
+
+def test_update_lbp_rounding(client):
+	res = client.put(f"{SETTINGS_URL}/exchange-rate", json={"usd_to_lbp_rate": 90000, "lbp_rounding": 5000})
+	assert res.status_code == 200
+	assert res.json()["lbp_rounding"] == 5000
+	assert client.get(f"{SETTINGS_URL}/exchange-rate").json()["lbp_rounding"] == 5000
+
+
+def test_omitting_lbp_rounding_leaves_it_unchanged(client):
+	client.put(f"{SETTINGS_URL}/exchange-rate", json={"usd_to_lbp_rate": 90000, "lbp_rounding": 5000})
+	res = client.put(f"{SETTINGS_URL}/exchange-rate", json={"usd_to_lbp_rate": 91000})
+	assert res.json()["lbp_rounding"] == 5000
+
+
 def test_tax_rate_defaults_to_zero(client):
 	res = client.get(f"{SETTINGS_URL}/tax-rate")
 	assert res.status_code == 200

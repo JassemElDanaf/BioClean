@@ -1,4 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
+import ActionsMenu from "../../components/ActionsMenu";
+import DateRangeFilter, { isoDate, todayIso, type DateRangePreset, type DateRangeValue } from "../../components/DateRangeFilter";
 import DocumentLineBuilder, { type DraftLine } from "../../components/DocumentLineBuilder";
 import Modal from "../../components/Modal";
 import { ApiError } from "../../lib/api";
@@ -7,6 +9,29 @@ import type { Customer } from "../customers/types";
 import { listItems } from "../inventory/api";
 import type { Item } from "../inventory/types";
 import { convertQuotation, createQuotation, deleteQuotation, listQuotations, quotationPdfUrl, type Quotation } from "./api";
+
+const PRESETS: DateRangePreset[] = [
+	{ key: "today", label: "Today", range: () => ({ from_date: todayIso(), to_date: todayIso() }) },
+	{
+		key: "week",
+		label: "This Week",
+		range: () => {
+			const from = new Date();
+			from.setDate(from.getDate() - 7);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{
+		key: "month",
+		label: "This Month",
+		range: () => {
+			const from = new Date();
+			from.setMonth(from.getMonth() - 1);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{ key: "all", label: "All Time", range: () => ({}) },
+];
 
 function statusPill(status: Quotation["status"]): React.CSSProperties {
 	const map: Record<Quotation["status"], [string, string]> = {
@@ -36,12 +61,14 @@ export default function QuotationTab() {
 
 	const [viewing, setViewing] = useState<Quotation | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
+	const [dateFilters, setDateFilters] = useState<DateRangeValue>(() => PRESETS[0].range());
+	const [formOpen, setFormOpen] = useState(false);
 
 	const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
 	function reloadAll() {
 		setLoading(true);
-		Promise.all([listItems(), listCustomers(), listQuotations()])
+		Promise.all([listItems(), listCustomers(), listQuotations(dateFilters)])
 			.then(([itemsResult, customersResult, quotationsResult]) => {
 				setItems(itemsResult.items);
 				setCustomers(customersResult);
@@ -52,7 +79,7 @@ export default function QuotationTab() {
 			.finally(() => setLoading(false));
 	}
 
-	useEffect(reloadAll, []);
+	useEffect(reloadAll, [dateFilters]);
 
 	function priceFor(item: Item): number {
 		return selectedCustomer?.is_wholesale ? item.wholesale_price : item.retail_price;
@@ -93,6 +120,7 @@ export default function QuotationTab() {
 			setCustomerId("");
 			setValidUntil("");
 			setNotes("");
+			setFormOpen(false);
 			reloadAll();
 		} catch (err) {
 			setCreateError(err instanceof ApiError ? err.message : "Couldn't create this quotation.");
@@ -129,47 +157,60 @@ export default function QuotationTab() {
 
 	return (
 		<div>
-			<h2 style={{ marginTop: 0 }}>New Quotation</h2>
-			<div style={{ display: "flex", gap: 20, marginBottom: 32, alignItems: "flex-start" }}>
-				<div style={{ flex: 1, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16 }}>
-					<DocumentLineBuilder items={items} lines={lines} respectStock={false} onAdd={addLine} onChangeQty={changeQty} onRemove={removeLine} priceFor={priceFor} />
-				</div>
-
-				<div style={{ width: 320, flexShrink: 0, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, display: "grid", gap: 10 }}>
-					<label style={fieldLabelStyle}>
-						Customer
-						<select value={customerId} onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : "")} style={inputStyle}>
-							<option value="">No customer yet</option>
-							{customers.map((c) => (
-								<option key={c.id} value={c.id}>
-									{c.name} {c.is_wholesale ? "(wholesale)" : ""}
-								</option>
-							))}
-						</select>
-					</label>
-					<label style={fieldLabelStyle}>
-						Valid Until (optional)
-						<input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} style={inputStyle} />
-					</label>
-					<label style={fieldLabelStyle}>
-						Notes (optional)
-						<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-					</label>
-
-					<div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--neutral-200)", paddingTop: 10, marginTop: 4 }}>
-						<span style={{ fontWeight: 700 }}>Total</span>
-						<span style={{ fontWeight: 800, fontSize: 18 }}>${total.toFixed(2)}</span>
-					</div>
-
-					{createError && <div style={{ color: "crimson", fontSize: 13 }}>{createError}</div>}
-
-					<button onClick={handleCreate} disabled={lines.length === 0 || saving} style={lines.length === 0 || saving ? primaryButtonDisabledStyle : primaryButtonStyle}>
-						{saving ? "Creating..." : "Create Quotation"}
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
+				<h2 style={{ margin: 0 }}>Quotations ({quotations.length})</h2>
+				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+					<DateRangeFilter presets={PRESETS} value={dateFilters} onChange={setDateFilters} />
+					<button onClick={() => setFormOpen((v) => !v)} style={primaryButtonStyle}>
+						{formOpen ? "Cancel" : "+ New Quotation"}
 					</button>
 				</div>
 			</div>
 
-			<h2 style={{ marginBottom: 12 }}>Quotations ({quotations.length})</h2>
+			{formOpen && (
+				<div style={{ display: "flex", gap: 20, marginBottom: 24, alignItems: "flex-start" }}>
+					<div style={{ flex: 1, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16 }}>
+						<DocumentLineBuilder items={items} lines={lines} respectStock={false} onAdd={addLine} onChangeQty={changeQty} onRemove={removeLine} priceFor={priceFor} />
+					</div>
+
+					<div style={{ width: 320, flexShrink: 0, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, display: "grid", gap: 10 }}>
+						<label style={fieldLabelStyle}>
+							Customer
+							<select value={customerId} onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : "")} style={inputStyle}>
+								<option value="">No customer yet</option>
+								{customers.map((c) => (
+									<option key={c.id} value={c.id}>
+										{c.name} {c.is_wholesale ? "(wholesale)" : ""}
+									</option>
+								))}
+							</select>
+						</label>
+						<label style={fieldLabelStyle}>
+							Valid Until (optional)
+							<input type="date" value={validUntil} onChange={(e) => setValidUntil(e.target.value)} style={inputStyle} />
+						</label>
+						<label style={fieldLabelStyle}>
+							Notes (optional)
+							<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+						</label>
+
+						<div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--neutral-200)", paddingTop: 10, marginTop: 4 }}>
+							<span style={{ fontWeight: 700 }}>Total</span>
+							<span style={{ fontWeight: 800, fontSize: 18 }}>${total.toFixed(2)}</span>
+						</div>
+
+						{createError && <div style={{ color: "crimson", fontSize: 13 }}>{createError}</div>}
+
+						<button onClick={handleCreate} disabled={lines.length === 0 || saving} style={lines.length === 0 || saving ? primaryButtonDisabledStyle : primaryButtonStyle}>
+							{saving ? "Creating..." : "Create Quotation"}
+						</button>
+					</div>
+				</div>
+			)}
+
+			{actionError && (
+				<div style={{ background: "#fde2e2", color: "#b42318", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{actionError}</div>
+			)}
 
 			<div style={{ background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
 				<table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse" }}>
@@ -194,14 +235,18 @@ export default function QuotationTab() {
 									<span style={statusPill(q.status)}>{q.status}</span>
 								</td>
 								<td style={tdStyle}>
-									<div style={{ display: "flex", gap: 6 }}>
-										<button onClick={() => setViewing(q)} style={smallButtonStyle}>
-											View
-										</button>
-										<a href={quotationPdfUrl(q.id)} target="_blank" rel="noreferrer" style={{ ...smallButtonStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-											PDF
-										</a>
-									</div>
+									<ActionsMenu
+										actions={[
+											{ label: "View", onClick: () => setViewing(q) },
+											{ label: "Download PDF", onClick: () => window.open(quotationPdfUrl(q.id), "_blank") },
+											...(q.status !== "converted"
+												? [
+														{ label: "Convert to Invoice", onClick: () => handleConvert(q) },
+														{ label: "Delete", onClick: () => handleDelete(q), danger: true },
+													]
+												: []),
+										]}
+									/>
 								</td>
 							</tr>
 						))}

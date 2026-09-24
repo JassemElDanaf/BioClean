@@ -15,7 +15,7 @@ def create_purchase_order(db: Session, supplier_id: int, lines: list[dict], note
 		raise HTTPException(status_code=404, detail=f"Supplier {supplier_id} not found")
 	warehouse_id = warehouse_id or items_service.get_default_warehouse(db).id
 
-	po = PurchaseOrder(supplier_id=supplier_id, warehouse_id=warehouse_id, total=0, notes=notes)
+	po = PurchaseOrder(supplier_id=supplier_id, supplier_name=supplier.name, warehouse_id=warehouse_id, total=0, notes=notes)
 	db.add(po)
 	db.flush()
 
@@ -75,6 +75,21 @@ def receive_purchase_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
 	return po
 
 
+def mark_paid(db: Session, po: PurchaseOrder) -> PurchaseOrder:
+	"""Settles the accounts-payable liability for this order - only valid
+	once goods have actually been received (see PurchaseOrder.payment_status's
+	docstring); a pending order has nothing owed yet, and a cancelled one
+	never will."""
+	if po.status != "received":
+		raise HTTPException(status_code=409, detail=f"Purchase order is '{po.status}', not received - nothing owed to mark paid yet")
+	if po.payment_status == "paid":
+		raise HTTPException(status_code=409, detail="Purchase order is already marked paid")
+	po.payment_status = "paid"
+	db.commit()
+	db.refresh(po)
+	return po
+
+
 def cancel_purchase_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
 	if po.status != "pending":
 		raise HTTPException(status_code=409, detail=f"Purchase order is '{po.status}', not pending - can't cancel it")
@@ -85,12 +100,24 @@ def cancel_purchase_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
 	return po
 
 
-def list_purchase_orders(db: Session, skip: int = 0, limit: int = 100, status: str | None = None, supplier_id: int | None = None):
+def list_purchase_orders(
+	db: Session,
+	skip: int = 0,
+	limit: int = 100,
+	status: str | None = None,
+	supplier_id: int | None = None,
+	from_date=None,
+	to_date=None,
+):
 	base = db.query(PurchaseOrder)
 	if status:
 		base = base.filter(PurchaseOrder.status == status)
 	if supplier_id:
 		base = base.filter(PurchaseOrder.supplier_id == supplier_id)
+	if from_date:
+		base = base.filter(PurchaseOrder.created_at >= from_date)
+	if to_date:
+		base = base.filter(PurchaseOrder.created_at <= to_date)
 
 	total = base.count()
 	orders = (

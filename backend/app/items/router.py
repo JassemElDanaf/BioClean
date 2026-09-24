@@ -302,10 +302,4 @@ def delete_item(item_id: int, db: Session = Depends(get_db)):
 	item = db.get(models.Item, item_id)
 	if not item:
 		raise HTTPException(status_code=404, detail="Item not found")
-	if not service.is_safe_to_delete(db, item):
-		raise HTTPException(
-			status_code=409,
-			detail=f"'{item.item_name}' has stock history or real stock on hand and can't be deleted.",
-		)
-	db.delete(item)
-	db.commit()
+	service.delete_item(db, item)

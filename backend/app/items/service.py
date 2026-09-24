@@ -165,33 +165,28 @@ def adjust_stock(
 	return level
 
 
-def is_safe_to_delete(db: Session, item: Item) -> bool:
-	"""Two independent checks, because relying on either alone is fragile:
-	- has_stock_history: catches real activity (a sale then a matching
-	  restock nets back to the original quantity, but it still happened
-	  and shouldn't be silently erased).
-	- current stock is non-zero: catches the case that was missed before -
-	  an item created with initial stock and never touched again passed
-	  the history check, but deleting it would still wipe out real
-	  physical stock sitting on a shelf. An item is only truly safe to
-	  hard-delete if neither is true."""
-	if has_stock_history(db, item.id):
-		return False
-	if total_stock(item) != 0:
-		return False
-	return True
+def delete_item(db: Session, item: Item) -> None:
+	"""Always allowed, regardless of history - every document that ever
+	referenced this item (SaleLine, InvoiceLine, PurchaseOrderLine,
+	QuotationLine, ReturnLine) already snapshotted its own item_name/
+	barcode/price at the time, so it renders correctly forever with no
+	live Item row to point at. Deleting just detaches those references
+	(item_id -> NULL) instead of destroying the documents themselves -
+	a real Sale/Invoice/PO is an accounting record and must never
+	disappear just because its catalog entry did.
 
+	This item's OWN stock history (ItemStock/StockMovement) has no
+	independent meaning once the item is gone, so those rows cascade-
+	delete for real (see Item.movements/.stock_levels relationships)."""
+	from ..invoicing.models import InvoiceLine
+	from ..pos.models import ReturnLine, SaleLine
+	from ..purchases.models import PurchaseOrderLine
+	from ..quotation.models import QuotationLine
 
-def has_stock_history(db: Session, item_id: int) -> bool:
-	"""Whether anything beyond the initial-stock-at-creation entry has ever
-	happened to this item (initial stock itself isn't "history" - it's
-	just the starting number)."""
-	return (
-		db.query(StockMovement)
-		.filter(StockMovement.item_id == item_id, StockMovement.reason != "initial_stock")
-		.count()
-		> 0
-	)
+	for model in (SaleLine, ReturnLine, InvoiceLine, PurchaseOrderLine, QuotationLine):
+		db.query(model).filter(model.item_id == item.id).update({"item_id": None})
+	db.delete(item)
+	db.commit()
 
 
 def get_movements(db: Session, item_id: int) -> list[StockMovement]:

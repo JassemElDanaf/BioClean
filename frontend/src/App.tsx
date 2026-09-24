@@ -1,7 +1,6 @@
-import { useEffect, useState, type ComponentType } from "react";
-import { Navigate, Route, Routes, useLocation } from "react-router-dom";
+import type { ComponentType } from "react";
+import { Navigate, Route, Routes } from "react-router-dom";
 import Sidebar, { type NavTab } from "./components/Sidebar";
-import { UserIcon } from "./components/icons";
 import {
 	CustomersIcon,
 	DashboardIcon,
@@ -44,72 +43,24 @@ const TABS: (NavTab & { component: ComponentType })[] = [
 	{ path: "expenses", label: "Expenses", icon: ExpensesIcon, component: Expenses },
 	{ path: "income", label: "Income", icon: IncomeIcon, component: Income },
 	{ path: "reports", label: "Reports", icon: ReportsIcon, component: Reports },
-	{ path: "settings", label: "Settings", icon: SettingsIcon, component: Settings },
 ];
 
-function useClock() {
-	const [now, setNow] = useState(new Date());
-	useEffect(() => {
-		const id = setInterval(() => setNow(new Date()), 1000 * 30);
-		return () => clearInterval(id);
-	}, []);
-	return now;
-}
-
-function TopBar() {
-	const location = useLocation();
-	const now = useClock();
-	const active = TABS.find((t) => location.pathname === `/${t.path}`);
-	const dateStr = now.toLocaleDateString(undefined, { weekday: "short", month: "short", day: "numeric" });
-	const timeStr = now.toLocaleTimeString(undefined, { hour: "numeric", minute: "2-digit" });
-
-	return (
-		<header
-			style={{
-				display: "flex",
-				alignItems: "center",
-				justifyContent: "space-between",
-				padding: "16px 24px",
-				background: "#fff",
-				borderBottom: "1px solid var(--neutral-200)",
-				flexShrink: 0,
-			}}
-		>
-			<h1 style={{ fontSize: 17, fontWeight: 700, margin: 0 }}>{active?.label ?? "BioClean"}</h1>
-			<div style={{ display: "flex", alignItems: "center", gap: 16 }}>
-				<div style={{ fontSize: 13, color: "var(--neutral-500)", display: "flex", gap: 10 }}>
-					<span>{dateStr}</span>
-					<span style={{ fontWeight: 700, color: "var(--neutral-900)" }}>{timeStr}</span>
-				</div>
-				<div
-					style={{
-						width: 32,
-						height: 32,
-						borderRadius: "50%",
-						background: "var(--brand-pale)",
-						color: "var(--brand)",
-						display: "flex",
-						alignItems: "center",
-						justifyContent: "center",
-					}}
-				>
-					<UserIcon size={16} />
-				</div>
-			</div>
-		</header>
-	);
-}
+// Not in TABS/the main sidebar list on purpose - reached through the
+// flyout menu on the Admin block at the bottom of the sidebar instead
+// (see Sidebar.tsx). Still a real route here, so /settings itself, direct
+// links, and refreshes all still work.
+const SETTINGS_TAB: NavTab & { component: ComponentType } = { path: "settings", label: "Settings", icon: SettingsIcon, component: Settings };
+const ALL_TABS = [...TABS, SETTINGS_TAB];
 
 export default function App() {
 	return (
 		<div style={{ display: "flex", height: "100vh" }}>
-			<Sidebar tabs={TABS} />
+			<Sidebar tabs={TABS} settingsTab={SETTINGS_TAB} />
 			<div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-				<TopBar />
 				<main style={{ flex: 1, padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0 }}>
 					<Routes>
 						<Route path="/" element={<Navigate to="/dashboard" replace />} />
-						{TABS.map((tab) => (
+						{ALL_TABS.map((tab) => (
 							<Route key={tab.path} path={`/${tab.path}`} element={<tab.component />} />
 						))}
 						<Route path="*" element={<Navigate to="/dashboard" replace />} />

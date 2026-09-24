@@ -58,25 +58,36 @@ class Sale(Base):
 	# stock for) a second one. Nullable/unique so it's optional but never
 	# ambiguous when present.
 	idempotency_key = Column(String, unique=True, nullable=True, index=True)
+	# Running total actually refunded across every Return against this sale
+	# (see Return below) - a denormalized accumulator, not the source of
+	# truth (ReturnLine rows are), kept only so Sales History's list view
+	# can show a Partially/Fully Returned badge without summing every
+	# return for every sale on every page load.
+	returned_total = Column(Numeric(12, 2), nullable=False, default=0)
 
 	warehouse = relationship("Warehouse")
 	lines = relationship("SaleLine", back_populates="sale", cascade="all, delete-orphan")
+	returns = relationship("Return", back_populates="sale", order_by="Return.created_at.desc()")
 
 
 class SaleLine(Base):
 	"""One scanned item within a Sale. item_name/barcode/unit_price are
 	snapshotted at sale time (same reasoning as StockMovement.unit_cost) -
 	a receipt has to keep showing exactly what was sold and charged even
-	if the item is later renamed or repriced. item_id is still kept (not
-	nullable) since an item with sale history can never actually be
-	deleted - Item.is_safe_to_delete() already blocks that via the
-	pos_sale StockMovement rows checkout() writes."""
+	if the item is later renamed or repriced. item_id is nullable so
+	deleting the underlying Item (see items/service.py:delete_item()) just
+	detaches this line from it instead of being blocked forever or
+	destroying real sale history."""
 
 	__tablename__ = "sale_lines"
 
 	id = Column(Integer, primary_key=True, index=True)
 	sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False, index=True)
-	item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+	# Nullable so the underlying Item can be deleted without destroying
+	# this line's own history - item_name/barcode/unit_price below are
+	# already a full snapshot, so the receipt/report keeps showing exactly
+	# what was sold even once the catalog row is gone.
+	item_id = Column(Integer, ForeignKey("items.id"), nullable=True, index=True)
 	item_name = Column(String, nullable=False)
 	barcode = Column(String, nullable=False)
 	qty = Column(Numeric(12, 2), nullable=False)
@@ -89,4 +100,52 @@ class SaleLine(Base):
 	line_total = Column(Numeric(12, 2), nullable=False)
 
 	sale = relationship("Sale", back_populates="lines")
+	item = relationship("Item")
+
+
+class Return(Base):
+	"""A partial or full return against one Sale - never modifies or
+	deletes the original Sale/SaleLine rows, just records that some
+	quantity came back and restores stock for exactly that quantity (see
+	pos/service.py:create_return()). A sale can have any number of these
+	over time (a customer returning 1 of 3 items today and the other 2
+	next week is two separate Return rows against the same Sale)."""
+
+	__tablename__ = "returns"
+
+	id = Column(Integer, primary_key=True, index=True)
+	sale_id = Column(Integer, ForeignKey("sales.id"), nullable=False, index=True)
+	refund_method = Column(String, nullable=False, default="cash")
+	total_refund = Column(Numeric(12, 2), nullable=False)
+	reason = Column(String, nullable=True)
+	user = Column(String, nullable=False, default="admin")
+	created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
+
+	sale = relationship("Sale", back_populates="returns")
+	lines = relationship("ReturnLine", back_populates="return_", cascade="all, delete-orphan")
+
+
+class ReturnLine(Base):
+	"""One item/qty within a Return. sale_line_id ties it back to exactly
+	which original line it's returning against, which is what lets
+	create_return() enforce "can't return more of this line than was ever
+	sold, minus whatever's already been returned against it"."""
+
+	__tablename__ = "return_lines"
+
+	id = Column(Integer, primary_key=True, index=True)
+	return_id = Column(Integer, ForeignKey("returns.id"), nullable=False, index=True)
+	sale_line_id = Column(Integer, ForeignKey("sale_lines.id"), nullable=False, index=True)
+	# Nullable so the underlying Item can be deleted without destroying
+	# this return's own history - item_name/barcode below are already a
+	# full snapshot.
+	item_id = Column(Integer, ForeignKey("items.id"), nullable=True, index=True)
+	item_name = Column(String, nullable=False)
+	barcode = Column(String, nullable=False)
+	qty = Column(Numeric(12, 2), nullable=False)
+	unit_price = Column(Numeric(12, 2), nullable=False)
+	line_refund = Column(Numeric(12, 2), nullable=False)
+
+	return_ = relationship("Return", back_populates="lines")
+	sale_line = relationship("SaleLine")
 	item = relationship("Item")

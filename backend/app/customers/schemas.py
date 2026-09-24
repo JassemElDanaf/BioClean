@@ -24,3 +24,7 @@ class CustomerOut(CustomerBase):
 
 	id: int
 	created_at: datetime
+	# Accounts receivable - sum of this customer's unpaid invoice totals.
+	# Computed, never stored (see customers/router.py) so it can never drift
+	# from what Invoicing actually shows.
+	balance: float = 0.0

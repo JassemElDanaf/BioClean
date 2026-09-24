@@ -30,7 +30,21 @@ def _to_out(sale: models.Sale) -> schemas.SaleOut:
 		voided_at=sale.voided_at,
 		user=sale.user,
 		created_at=sale.created_at,
+		returned_total=sale.returned_total,
 		lines=[schemas.SaleLineOut.model_validate(line) for line in sale.lines],
+	)
+
+
+def _return_to_out(ret: models.Return) -> schemas.ReturnOut:
+	return schemas.ReturnOut(
+		id=ret.id,
+		sale_id=ret.sale_id,
+		refund_method=ret.refund_method,
+		total_refund=ret.total_refund,
+		reason=ret.reason,
+		user=ret.user,
+		created_at=ret.created_at,
+		lines=[schemas.ReturnLineOut.model_validate(line) for line in ret.lines],
 	)
 
 
@@ -124,3 +138,43 @@ def void_sale(sale_id: int, db: Session = Depends(get_db)):
 		raise HTTPException(status_code=404, detail="Sale not found")
 	sale = service.void_sale(db, sale)
 	return _to_out(sale)
+
+
+@router.post("/sales/{sale_id}/return", response_model=schemas.ReturnOut, status_code=201)
+def create_return(sale_id: int, payload: schemas.ReturnCreate, db: Session = Depends(get_db)):
+	sale = db.query(models.Sale).options(joinedload(models.Sale.lines)).filter(models.Sale.id == sale_id).first()
+	if not sale:
+		raise HTTPException(status_code=404, detail="Sale not found")
+	ret = service.create_return(
+		db,
+		sale,
+		lines=[line.model_dump() for line in payload.lines],
+		refund_method=payload.refund_method,
+		reason=payload.reason,
+	)
+	return _return_to_out(ret)
+
+
+@router.get("/sales/{sale_id}/returns", response_model=list[schemas.ReturnOut])
+def list_returns(sale_id: int, db: Session = Depends(get_db)):
+	sale = db.query(models.Sale).filter(models.Sale.id == sale_id).first()
+	if not sale:
+		raise HTTPException(status_code=404, detail="Sale not found")
+	returns = service.list_returns(db, sale)
+	return [_return_to_out(ret) for ret in returns]
+
+
+@router.post("/sales/{sale_id}/print")
+def print_sale_receipt(sale_id: int, db: Session = Depends(get_db)):
+	from .escpos_receipt import PrinterError
+
+	sale = db.query(models.Sale).options(joinedload(models.Sale.lines)).filter(models.Sale.id == sale_id).first()
+	if not sale:
+		raise HTTPException(status_code=404, detail="Sale not found")
+	try:
+		service.print_sale_receipt(db, sale)
+	except PrinterError as exc:
+		# 502: the *request* to print failed, not the sale - the sale
+		# itself is untouched and this is safely retryable on its own.
+		raise HTTPException(status_code=502, detail=str(exc))
+	return {"printed": True}

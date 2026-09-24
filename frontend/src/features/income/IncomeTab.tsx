@@ -1,21 +1,32 @@
 import { useEffect, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
+import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
 import Modal from "../../components/Modal";
 import { ApiError } from "../../lib/api";
 import { createIncome, deleteIncome, incomeExportCsvUrl, listIncome, updateIncome, type DateFilters, type Income, type IncomeFormValues } from "./api";
 
 const EMPTY: IncomeFormValues = { source: "", amount: 0, description: "", date: "", reference: "" };
 
-function todayIso(): string {
-	return new Date().toISOString().slice(0, 10);
-}
+const PRESETS: DateRangePreset[] = [
+	{ key: "today", label: "Today", range: () => ({ from_date: todayIso(), to_date: todayIso() }) },
+	{
+		key: "month",
+		label: "This Month",
+		range: () => {
+			const from = new Date();
+			from.setMonth(from.getMonth() - 1);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{ key: "all", label: "All Time", range: () => ({}) },
+];
 
 export default function IncomeTab() {
 	const [income, setIncome] = useState<Income[]>([]);
 	const [total, setTotal] = useState(0);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [filters, setFilters] = useState<DateFilters>({});
+	const [filters, setFilters] = useState<DateFilters>(() => PRESETS[0].range());
 	const [formOpen, setFormOpen] = useState(false);
 	const [editing, setEditing] = useState<Income | null>(null);
 
@@ -32,16 +43,6 @@ export default function IncomeTab() {
 	}
 
 	useEffect(reload, [filters]);
-
-	function setPreset(preset: "month" | "all") {
-		if (preset === "all") {
-			setFilters({});
-			return;
-		}
-		const from = new Date();
-		from.setMonth(from.getMonth() - 1);
-		setFilters({ from_date: from.toISOString().slice(0, 10), to_date: todayIso() });
-	}
 
 	async function handleSubmit(values: IncomeFormValues) {
 		if (editing) {
@@ -71,13 +72,8 @@ export default function IncomeTab() {
 		<div>
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
 				<h2 style={{ margin: 0 }}>Income ({total})</h2>
-				<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-					<button onClick={() => setPreset("month")} style={secondaryButtonStyle}>
-						This Month
-					</button>
-					<button onClick={() => setPreset("all")} style={secondaryButtonStyle}>
-						All Time
-					</button>
+				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+					<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
 					<a href={incomeExportCsvUrl(filters)} style={secondaryButtonStyle}>
 						Export CSV
 					</a>

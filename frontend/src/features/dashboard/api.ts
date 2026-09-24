@@ -9,10 +9,13 @@ export interface DashboardSummary {
 	sales_revenue: number;
 	sales_count: number;
 	invoice_revenue: number;
+	manual_income: number;
 	total_revenue: number;
 	average_sale: number;
 	cogs: number;
 	gross_profit: number;
+	expenses_total: number;
+	net_profit: number;
 	low_stock_count: number;
 	out_of_stock_count: number;
 	total_items: number;

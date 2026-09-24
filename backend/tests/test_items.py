@@ -60,17 +60,37 @@ def test_adjust_stock_cannot_go_negative(client):
 	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 2
 
 
-def test_delete_blocked_when_stock_history_exists(client):
+def test_delete_allowed_even_when_stock_history_exists(client):
 	item = make_item(client)
 	client.post(f"{ITEMS_URL}/{item['id']}/adjust-stock", json={"delta": -1, "reason": "damage"})
 	res = client.delete(f"{ITEMS_URL}/{item['id']}")
-	assert res.status_code == 409
+	assert res.status_code == 204
+	assert client.get(f"{ITEMS_URL}/{item['id']}").status_code == 404
 
 
 def test_delete_allowed_for_untouched_zero_stock_item(client):
 	item = make_item(client, initial_stock_qty=0)
 	res = client.delete(f"{ITEMS_URL}/{item['id']}")
 	assert res.status_code == 204
+
+
+def test_delete_allowed_with_real_stock_on_hand(client):
+	"""Deleting an item that still has physical stock on hand is allowed -
+	the user's own explicit call, not something the backend should ever
+	refuse to do."""
+	item = make_item(client, initial_stock_qty=25)
+	res = client.delete(f"{ITEMS_URL}/{item['id']}")
+	assert res.status_code == 204
+
+
+def test_delete_item_removes_its_own_stock_movements(client):
+	item = make_item(client)
+	client.post(f"{ITEMS_URL}/{item['id']}/adjust-stock", json={"delta": -1, "reason": "damage"})
+	client.delete(f"{ITEMS_URL}/{item['id']}")
+	# The item itself is gone - its per-item audit trail has no
+	# independent meaning any more and goes with it.
+	res = client.get(f"{ITEMS_URL}/{item['id']}/stock-movements")
+	assert res.status_code == 404
 
 
 def test_low_stock_filter(client):

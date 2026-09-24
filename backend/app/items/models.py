@@ -40,10 +40,12 @@ class Item(Base):
 	updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())
 
 	stock_levels = relationship("ItemStock", back_populates="item", cascade="all, delete-orphan")
-	# Deleting an item is only allowed (see service.is_safe_to_delete) when
-	# it has no real movement history and no stock on hand - this cascade
-	# is what lets the one harmless initial-stock row go with it instead of
-	# blocking the delete with a foreign key violation.
+	# Deleting an item is always allowed (see service.delete_item) - this
+	# item's own stock levels/movement history have no independent meaning
+	# once it's gone, so they cascade-delete with it. Every document that
+	# ever referenced this item (SaleLine, InvoiceLine, etc.) already
+	# snapshotted its own display data and just gets item_id set to NULL
+	# instead.
 	movements = relationship("StockMovement", back_populates="item", cascade="all, delete-orphan")
 
 

@@ -47,7 +47,7 @@ def create_invoice(
 	# Snapshotted at issue time - a later rate change must never alter what
 	# this invoice showed, even if it stays unpaid for weeks.
 	exchange_rate = float(get_or_create_settings(db).usd_to_lbp_rate)
-	invoice = Invoice(customer_id=customer_id, warehouse_id=warehouse_id, total=0, exchange_rate=exchange_rate, due_date=due_date, notes=notes)
+	invoice = Invoice(customer_id=customer_id, customer_name=customer.name if customer else None, warehouse_id=warehouse_id, total=0, exchange_rate=exchange_rate, due_date=due_date, notes=notes)
 	db.add(invoice)
 	db.flush()  # assigns invoice.id, used below as the StockMovement.reference
 

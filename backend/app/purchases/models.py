@@ -16,12 +16,25 @@ class PurchaseOrder(Base):
 	__tablename__ = "purchase_orders"
 
 	id = Column(Integer, primary_key=True, index=True)
-	supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=False)
+	# Nullable so a Supplier can be deleted without destroying this order's
+	# own history - supplier_name is shown via the live relationship where
+	# still present, and falls back to None once the supplier is gone.
+	supplier_id = Column(Integer, ForeignKey("suppliers.id"), nullable=True)
+	# Snapshotted from supplier.name at creation time - see
+	# Invoice.customer_name's docstring for why.
+	supplier_name = Column(String, nullable=True)
 	warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
 	total = Column(Numeric(12, 2), nullable=False)
 	# pending -> received (adjust_stock runs) or pending -> cancelled
 	# (nothing to reverse, since nothing moved yet).
 	status = Column(String, nullable=False, default="pending")
+	# unpaid -> paid, tracked separately from `status` - goods can be
+	# received (stock already moved) well before the supplier's invoice is
+	# actually settled. Only meaningful once status == "received" (see
+	# purchases/service.py:mark_paid()); a pending/cancelled order carries
+	# no payable liability yet, same "not real until it happened" reasoning
+	# as Invoice.status.
+	payment_status = Column(String, nullable=False, default="unpaid")
 	notes = Column(String, nullable=True)
 	user = Column(String, nullable=False, default="admin")
 	created_at = Column(DateTime(timezone=True), server_default=func.now(), index=True)
@@ -40,7 +53,10 @@ class PurchaseOrderLine(Base):
 
 	id = Column(Integer, primary_key=True, index=True)
 	purchase_order_id = Column(Integer, ForeignKey("purchase_orders.id"), nullable=False, index=True)
-	item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+	# Nullable so the underlying Item can be deleted without destroying
+	# this order's own history - item_name/barcode/unit_cost below are
+	# already a full snapshot.
+	item_id = Column(Integer, ForeignKey("items.id"), nullable=True, index=True)
 	item_name = Column(String, nullable=False)
 	barcode = Column(String, nullable=False)
 	qty = Column(Numeric(12, 2), nullable=False)

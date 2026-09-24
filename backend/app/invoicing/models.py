@@ -20,6 +20,11 @@ class Invoice(Base):
 
 	id = Column(Integer, primary_key=True, index=True)
 	customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+	# Snapshotted from customer.name at creation time (same reasoning as
+	# every InvoiceLine's item_name) - deleting the Customer later (see
+	# customers/router.py) only nulls customer_id, never this, so the
+	# invoice keeps showing who it was actually billed to forever.
+	customer_name = Column(String, nullable=True)
 	warehouse_id = Column(Integer, ForeignKey("warehouses.id"), nullable=False)
 	total = Column(Numeric(12, 2), nullable=False)
 	# USD->LBP rate in effect when this invoice was issued - same snapshot
@@ -56,7 +61,10 @@ class InvoiceLine(Base):
 
 	id = Column(Integer, primary_key=True, index=True)
 	invoice_id = Column(Integer, ForeignKey("invoices.id"), nullable=False, index=True)
-	item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+	# Nullable so the underlying Item can be deleted without destroying
+	# this invoice's own history - item_name/barcode/unit_price below are
+	# already a full snapshot.
+	item_id = Column(Integer, ForeignKey("items.id"), nullable=True, index=True)
 	item_name = Column(String, nullable=False)
 	barcode = Column(String, nullable=False)
 	qty = Column(Numeric(12, 2), nullable=False)

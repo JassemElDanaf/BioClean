@@ -18,3 +18,7 @@ class SupplierUpdate(SupplierBase):
 class SupplierOut(SupplierBase):
 	model_config = ConfigDict(from_attributes=True)
 	id: int
+	# Accounts payable - sum of received-but-unpaid purchase order totals
+	# owed to this supplier. Computed, never stored (see
+	# suppliers/router.py) so it can never drift from what Purchases shows.
+	balance: float = 0.0

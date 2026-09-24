@@ -41,10 +41,47 @@ def test_delete_unused_customer(client):
 	assert res.status_code == 204
 
 
-def test_delete_customer_with_invoice_history_is_blocked(client):
+def test_delete_customer_with_invoice_history_detaches_but_preserves_it(client):
+	"""Deleting a customer with invoice history is allowed - Invoice
+	already snapshots customer_name at creation time, so the invoice keeps
+	showing who it was billed to with customer_id simply nulled out."""
+	item = make_item(client)
+	customer = client.post(CUSTOMERS_URL, json={"name": "Acme Hotel"}).json()
+	invoice = client.post(INVOICES_URL, json={"customer_id": customer["id"], "lines": [{"item_id": item["id"], "qty": 1}]}).json()
+
+	res = client.delete(f"{CUSTOMERS_URL}/{customer['id']}")
+	assert res.status_code == 204
+
+	invoice_after = client.get(f"{INVOICES_URL}/{invoice['id']}").json()
+	assert invoice_after["customer_id"] is None
+	assert invoice_after["customer_name"] == "Acme Hotel"
+
+
+def test_new_customer_has_zero_balance(client):
+	res = client.post(CUSTOMERS_URL, json={"name": "Acme Hotel"})
+	assert res.json()["balance"] == 0.0
+
+
+def test_balance_reflects_unpaid_invoices_only(client):
+	item = make_item(client)
+	customer = client.post(CUSTOMERS_URL, json={"name": "Acme Hotel"}).json()
+	unpaid = client.post(INVOICES_URL, json={"customer_id": customer["id"], "lines": [{"item_id": item["id"], "qty": 2}]}).json()  # $20
+	paid = client.post(INVOICES_URL, json={"customer_id": customer["id"], "lines": [{"item_id": item["id"], "qty": 3}]}).json()  # $30
+	client.post(f"{INVOICES_URL}/{paid['id']}/mark-paid")
+
+	customers = client.get(CUSTOMERS_URL).json()
+	acme = next(c for c in customers if c["id"] == customer["id"])
+	assert acme["balance"] == 20.0  # only the unpaid invoice
+	assert unpaid["status"] == "unpaid"
+
+
+def test_customers_export_csv_includes_balance(client):
 	item = make_item(client)
 	customer = client.post(CUSTOMERS_URL, json={"name": "Acme Hotel"}).json()
 	client.post(INVOICES_URL, json={"customer_id": customer["id"], "lines": [{"item_id": item["id"], "qty": 1}]})
 
-	res = client.delete(f"{CUSTOMERS_URL}/{customer['id']}")
-	assert res.status_code == 409
+	res = client.get(f"{CUSTOMERS_URL}/export/csv")
+	assert res.status_code == 200
+	body = res.content.decode("utf-8-sig")
+	assert "Acme Hotel" in body
+	assert "10" in body  # 1 * $10 retail balance owed

@@ -8,6 +8,20 @@ def make_item(client, **overrides):
 	return client.post(ITEMS_URL, json=payload).json()
 
 
+def test_list_filters_by_date_range(client):
+	item = make_item(client)
+	client.post(QUOTATIONS_URL, json={"lines": [{"item_id": item["id"], "qty": 1}]})
+
+	from datetime import datetime, timedelta
+
+	tomorrow = (datetime.now() + timedelta(days=1)).strftime("%Y-%m-%d")
+	yesterday = (datetime.now() - timedelta(days=1)).strftime("%Y-%m-%d")
+
+	assert client.get(f"{QUOTATIONS_URL}?from_date={tomorrow}").json() == []
+	res = client.get(f"{QUOTATIONS_URL}?from_date={yesterday}")
+	assert len(res.json()) == 1
+
+
 def test_quotation_creation_does_not_touch_stock(client):
 	item = make_item(client)
 	res = client.post(QUOTATIONS_URL, json={"lines": [{"item_id": item["id"], "qty": 5}]})

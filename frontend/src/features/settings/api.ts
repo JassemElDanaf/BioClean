@@ -1,13 +1,18 @@
 import { apiRequest } from "../../lib/api";
 
-export function getExchangeRate(): Promise<{ usd_to_lbp_rate: number }> {
+export interface ExchangeRateSettings {
+	usd_to_lbp_rate: number;
+	lbp_rounding: number;
+}
+
+export function getExchangeRate(): Promise<ExchangeRateSettings> {
 	return apiRequest("/settings/exchange-rate");
 }
 
-export function updateExchangeRate(rate: number): Promise<{ usd_to_lbp_rate: number }> {
+export function updateExchangeRate(rate: number, rounding?: number): Promise<ExchangeRateSettings> {
 	return apiRequest("/settings/exchange-rate", {
 		method: "PUT",
-		body: JSON.stringify({ usd_to_lbp_rate: rate }),
+		body: JSON.stringify({ usd_to_lbp_rate: rate, lbp_rounding: rounding }),
 	});
 }
 
@@ -30,4 +35,23 @@ export interface ExchangeRateHistoryEntry {
 
 export function getExchangeRateHistory(): Promise<ExchangeRateHistoryEntry[]> {
 	return apiRequest("/settings/exchange-rate/history");
+}
+
+export type PrinterConnectionType = "none" | "windows" | "network";
+
+export interface PrinterSettings {
+	printer_connection_type: PrinterConnectionType;
+	printer_target: string | null;
+}
+
+export function getPrinterSettings(): Promise<PrinterSettings> {
+	return apiRequest("/settings/printer");
+}
+
+export function updatePrinterSettings(settings: PrinterSettings): Promise<PrinterSettings> {
+	return apiRequest("/settings/printer", { method: "PUT", body: JSON.stringify(settings) });
+}
+
+export function testPrinter(): Promise<{ printed: boolean }> {
+	return apiRequest("/settings/printer/test", { method: "POST" });
 }

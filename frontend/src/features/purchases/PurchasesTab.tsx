@@ -1,10 +1,35 @@
 import { useEffect, useMemo, useState } from "react";
+import ActionsMenu from "../../components/ActionsMenu";
+import DateRangeFilter, { isoDate, todayIso, type DateRangePreset, type DateRangeValue } from "../../components/DateRangeFilter";
 import DocumentLineBuilder, { type DraftLine } from "../../components/DocumentLineBuilder";
 import Modal from "../../components/Modal";
 import { ApiError } from "../../lib/api";
 import { listItems, listSuppliers } from "../inventory/api";
 import type { Item, Supplier } from "../inventory/types";
-import { cancelPurchaseOrder, createPurchaseOrder, listPurchaseOrders, purchaseOrderPdfUrl, purchasesExportCsvUrl, receivePurchaseOrder, type PurchaseOrder } from "./api";
+import { cancelPurchaseOrder, createPurchaseOrder, listPurchaseOrders, markPurchaseOrderPaid, purchaseOrderPdfUrl, receivePurchaseOrder, type PurchaseOrder } from "./api";
+
+const PRESETS: DateRangePreset[] = [
+	{ key: "today", label: "Today", range: () => ({ from_date: todayIso(), to_date: todayIso() }) },
+	{
+		key: "week",
+		label: "This Week",
+		range: () => {
+			const from = new Date();
+			from.setDate(from.getDate() - 7);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{
+		key: "month",
+		label: "This Month",
+		range: () => {
+			const from = new Date();
+			from.setMonth(from.getMonth() - 1);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{ key: "all", label: "All Time", range: () => ({}) },
+];
 
 function statusPill(status: PurchaseOrder["status"]): React.CSSProperties {
 	const map: Record<PurchaseOrder["status"], [string, string]> = {
@@ -13,6 +38,11 @@ function statusPill(status: PurchaseOrder["status"]): React.CSSProperties {
 		cancelled: ["var(--neutral-100)", "var(--neutral-500)"],
 	};
 	const [bg, fg] = map[status];
+	return { fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: bg, color: fg, textTransform: "capitalize" };
+}
+
+function paymentPillStyle(paymentStatus: PurchaseOrder["payment_status"]): React.CSSProperties {
+	const [bg, fg] = paymentStatus === "paid" ? ["var(--brand-pale)", "var(--brand)"] : ["#fde2e2", "#b42318"];
 	return { fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: bg, color: fg, textTransform: "capitalize" };
 }
 
@@ -31,10 +61,12 @@ export default function PurchasesTab() {
 
 	const [viewing, setViewing] = useState<PurchaseOrder | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
+	const [dateFilters, setDateFilters] = useState<DateRangeValue>(() => PRESETS[0].range());
+	const [formOpen, setFormOpen] = useState(false);
 
 	function reloadAll() {
 		setLoading(true);
-		Promise.all([listItems(), listSuppliers(), listPurchaseOrders()])
+		Promise.all([listItems(), listSuppliers(), listPurchaseOrders(dateFilters)])
 			.then(([itemsResult, suppliersResult, ordersResult]) => {
 				setItems(itemsResult.items);
 				setSuppliers(suppliersResult);
@@ -45,7 +77,7 @@ export default function PurchasesTab() {
 			.finally(() => setLoading(false));
 	}
 
-	useEffect(reloadAll, []);
+	useEffect(reloadAll, [dateFilters]);
 
 	function addLine(item: Item) {
 		setLines((prev) => {
@@ -80,6 +112,7 @@ export default function PurchasesTab() {
 			setLines([]);
 			setSupplierId("");
 			setNotes("");
+			setFormOpen(false);
 			reloadAll();
 		} catch (err) {
 			setCreateError(err instanceof ApiError ? err.message : "Couldn't create this purchase order.");
@@ -100,6 +133,18 @@ export default function PurchasesTab() {
 		}
 	}
 
+	async function handleMarkPaid(po: PurchaseOrder) {
+		if (!confirm(`Mark PO #${po.id} as paid to ${po.supplier_name ?? "this supplier"}?`)) return;
+		setActionError(null);
+		try {
+			const updated = await markPurchaseOrderPaid(po.id);
+			setViewing(updated);
+			reloadAll();
+		} catch (err) {
+			setActionError(err instanceof ApiError ? err.message : "Couldn't mark this purchase order paid.");
+		}
+	}
+
 	async function handleCancel(po: PurchaseOrder) {
 		if (!confirm(`Cancel PO #${po.id}?`)) return;
 		try {
@@ -116,52 +161,60 @@ export default function PurchasesTab() {
 
 	return (
 		<div>
-			<h2 style={{ marginTop: 0 }}>New Purchase Order</h2>
-			<div style={{ display: "flex", gap: 20, marginBottom: 32, alignItems: "flex-start" }}>
-				<div style={{ flex: 1, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16 }}>
-					<DocumentLineBuilder items={items} lines={lines} respectStock={false} onAdd={addLine} onChangeQty={changeQty} onRemove={removeLine} priceFor={(item) => item.cost_price} />
-				</div>
-
-				<div style={{ width: 320, flexShrink: 0, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, display: "grid", gap: 10 }}>
-					<label style={fieldLabelStyle}>
-						Supplier
-						<select value={supplierId} onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")} style={inputStyle} required>
-							<option value="">Select a supplier...</option>
-							{suppliers.map((s) => (
-								<option key={s.id} value={s.id}>
-									{s.name}
-								</option>
-							))}
-						</select>
-					</label>
-					<label style={fieldLabelStyle}>
-						Notes (optional)
-						<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-					</label>
-
-					<div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--neutral-200)", paddingTop: 10, marginTop: 4 }}>
-						<span style={{ fontWeight: 700 }}>Total</span>
-						<span style={{ fontWeight: 800, fontSize: 18 }}>${total.toFixed(2)}</span>
-					</div>
-
-					{createError && <div style={{ color: "crimson", fontSize: 13 }}>{createError}</div>}
-
-					<button
-						onClick={handleCreate}
-						disabled={lines.length === 0 || supplierId === "" || saving}
-						style={lines.length === 0 || supplierId === "" || saving ? primaryButtonDisabledStyle : primaryButtonStyle}
-					>
-						{saving ? "Creating..." : "Create Purchase Order"}
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
+				<h2 style={{ margin: 0 }}>Purchase Orders ({orders.length})</h2>
+				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+					<DateRangeFilter presets={PRESETS} value={dateFilters} onChange={setDateFilters} />
+					<button onClick={() => setFormOpen((v) => !v)} style={primaryButtonStyle}>
+						{formOpen ? "Cancel" : "+ New Purchase Order"}
 					</button>
 				</div>
 			</div>
 
-			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-				<h2 style={{ margin: 0 }}>Purchase Orders ({orders.length})</h2>
-				<a href={purchasesExportCsvUrl} style={secondaryButtonStyle}>
-					Export CSV
-				</a>
-			</div>
+			{formOpen && (
+				<div style={{ display: "flex", gap: 20, marginBottom: 24, alignItems: "flex-start" }}>
+					<div style={{ flex: 1, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16 }}>
+						<DocumentLineBuilder items={items} lines={lines} respectStock={false} onAdd={addLine} onChangeQty={changeQty} onRemove={removeLine} priceFor={(item) => item.cost_price} />
+					</div>
+
+					<div style={{ width: 320, flexShrink: 0, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, display: "grid", gap: 10 }}>
+						<label style={fieldLabelStyle}>
+							Supplier
+							<select value={supplierId} onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")} style={inputStyle} required>
+								<option value="">Select a supplier...</option>
+								{suppliers.map((s) => (
+									<option key={s.id} value={s.id}>
+										{s.name}
+									</option>
+								))}
+							</select>
+						</label>
+						<label style={fieldLabelStyle}>
+							Notes (optional)
+							<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+						</label>
+
+						<div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--neutral-200)", paddingTop: 10, marginTop: 4 }}>
+							<span style={{ fontWeight: 700 }}>Total</span>
+							<span style={{ fontWeight: 800, fontSize: 18 }}>${total.toFixed(2)}</span>
+						</div>
+
+						{createError && <div style={{ color: "crimson", fontSize: 13 }}>{createError}</div>}
+
+						<button
+							onClick={handleCreate}
+							disabled={lines.length === 0 || supplierId === "" || saving}
+							style={lines.length === 0 || supplierId === "" || saving ? primaryButtonDisabledStyle : primaryButtonStyle}
+						>
+							{saving ? "Creating..." : "Create Purchase Order"}
+						</button>
+					</div>
+				</div>
+			)}
+
+			{actionError && (
+				<div style={{ background: "#fde2e2", color: "#b42318", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{actionError}</div>
+			)}
 
 			<div style={{ background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
 				<table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse" }}>
@@ -172,6 +225,7 @@ export default function PurchasesTab() {
 							<th style={thStyle}>Supplier</th>
 							<th style={{ ...thStyle, textAlign: "right" }}>Total</th>
 							<th style={thStyle}>Status</th>
+							<th style={thStyle}>Payment</th>
 							<th style={thStyle}></th>
 						</tr>
 					</thead>
@@ -186,20 +240,32 @@ export default function PurchasesTab() {
 									<span style={statusPill(po.status)}>{po.status}</span>
 								</td>
 								<td style={tdStyle}>
-									<div style={{ display: "flex", gap: 6 }}>
-										<button onClick={() => setViewing(po)} style={smallButtonStyle}>
-											View
-										</button>
-										<a href={purchaseOrderPdfUrl(po.id)} target="_blank" rel="noreferrer" style={{ ...smallButtonStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-											PDF
-										</a>
-									</div>
+									{po.status === "received" && (
+										<span style={paymentPillStyle(po.payment_status)}>{po.payment_status}</span>
+									)}
+								</td>
+								<td style={tdStyle}>
+									<ActionsMenu
+										actions={[
+											{ label: "View", onClick: () => setViewing(po) },
+											{ label: "Download PDF", onClick: () => window.open(purchaseOrderPdfUrl(po.id), "_blank") },
+											...(po.status === "pending"
+												? [
+														{ label: "Receive", onClick: () => handleReceive(po) },
+														{ label: "Cancel", onClick: () => handleCancel(po), danger: true },
+													]
+												: []),
+											...(po.status === "received" && po.payment_status === "unpaid"
+												? [{ label: "Mark Paid", onClick: () => handleMarkPaid(po) }]
+												: []),
+										]}
+									/>
 								</td>
 							</tr>
 						))}
 						{orders.length === 0 && (
 							<tr>
-								<td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
+								<td colSpan={7} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
 									No purchase orders yet.
 								</td>
 							</tr>
@@ -211,8 +277,11 @@ export default function PurchasesTab() {
 			<Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing ? `PO #${viewing.id}` : ""}>
 				{viewing && (
 					<div>
-						<div style={{ fontSize: 13, color: "var(--neutral-500)", marginBottom: 12 }}>
-							{viewing.supplier_name} · {new Date(viewing.created_at).toLocaleString()}
+						<div style={{ fontSize: 13, color: "var(--neutral-500)", marginBottom: 12, display: "flex", alignItems: "center", gap: 8 }}>
+							<span>
+								{viewing.supplier_name} · {new Date(viewing.created_at).toLocaleString()}
+							</span>
+							{viewing.status === "received" && <span style={paymentPillStyle(viewing.payment_status)}>{viewing.payment_status}</span>}
 						</div>
 						<div style={{ display: "grid", gap: 8, marginBottom: 14 }}>
 							{viewing.lines.map((line) => (
@@ -245,6 +314,11 @@ export default function PurchasesTab() {
 										Cancel
 									</button>
 								</>
+							)}
+							{viewing.status === "received" && viewing.payment_status === "unpaid" && (
+								<button onClick={() => handleMarkPaid(viewing)} style={{ ...primaryButtonStyle, flex: 1 }}>
+									Mark Paid
+								</button>
 							)}
 						</div>
 					</div>
@@ -279,16 +353,6 @@ const primaryButtonDisabledStyle: React.CSSProperties = {
 	...primaryButtonStyle,
 	background: "var(--brand-pale)",
 	cursor: "not-allowed",
-};
-const secondaryButtonStyle: React.CSSProperties = {
-	padding: "8px 14px",
-	borderRadius: 8,
-	border: "1px solid var(--neutral-200)",
-	background: "#fff",
-	fontSize: 13,
-	fontWeight: 600,
-	color: "var(--neutral-900)",
-	textDecoration: "none",
 };
 const smallButtonStyle: React.CSSProperties = {
 	padding: "6px 10px",

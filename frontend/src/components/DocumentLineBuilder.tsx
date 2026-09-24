@@ -1,5 +1,6 @@
-import { useMemo, useState } from "react";
+import { useMemo, useRef, useState } from "react";
 import type { Item } from "../features/inventory/types";
+import { useBarcodeScanner } from "../lib/useBarcodeScanner";
 import { MinusIcon, PlusIcon, SearchIcon, TrashIcon } from "./icons";
 
 export interface DraftLine {
@@ -32,11 +33,34 @@ export default function DocumentLineBuilder({
 	priceFor: (item: Item) => number;
 }) {
 	const [search, setSearch] = useState("");
+	const [scanError, setScanError] = useState<string | null>(null);
+	const scanErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+
+	function handleScan(barcode: string) {
+		const item = items.find((i) => i.barcode === barcode);
+		if (scanErrorTimeoutRef.current) clearTimeout(scanErrorTimeoutRef.current);
+		if (!item) {
+			setScanError(`No item found for barcode "${barcode}"`);
+		} else if (respectStock && (item.stock_qty <= 0 || lineQtyFor(item.id) >= item.stock_qty)) {
+			setScanError(`"${item.item_name}" is out of stock`);
+		} else {
+			setScanError(null);
+			onAdd(item);
+			return;
+		}
+		scanErrorTimeoutRef.current = setTimeout(() => setScanError(null), 3000);
+	}
+
+	// Works no matter what's focused in this document (the search box
+	// here, a qty field, nothing) - see useBarcodeScanner's docstring.
+	useBarcodeScanner(handleScan);
 
 	const results = useMemo(() => {
 		const q = search.trim().toLowerCase();
-		if (!q) return [];
-		return items.filter((i) => i.item_name.toLowerCase().includes(q) || i.barcode.toLowerCase().includes(q)).slice(0, 8);
+		// No query yet - show the full catalog (scrollable) rather than
+		// forcing a keystroke before anything appears at all.
+		if (!q) return items;
+		return items.filter((i) => i.item_name.toLowerCase().includes(q) || i.barcode.toLowerCase().includes(q));
 	}, [items, search]);
 
 	function lineQtyFor(itemId: number): number {
@@ -45,6 +69,27 @@ export default function DocumentLineBuilder({
 
 	return (
 		<div>
+			{scanError && (
+				<div
+					style={{
+						position: "fixed",
+						top: 20,
+						left: "50%",
+						transform: "translateX(-50%)",
+						background: "#fde2e2",
+						color: "#b42318",
+						border: "1px solid #f5b5b0",
+						borderRadius: 10,
+						padding: "10px 18px",
+						fontSize: 14,
+						fontWeight: 600,
+						boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+						zIndex: 2000,
+					}}
+				>
+					{scanError}
+				</div>
+			)}
 			<div style={{ position: "relative", marginBottom: 10 }}>
 				<span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-500)" }}>
 					<SearchIcon size={15} />
@@ -53,7 +98,7 @@ export default function DocumentLineBuilder({
 			</div>
 
 			{results.length > 0 && (
-				<div style={{ border: "1px solid var(--neutral-200)", borderRadius: 8, marginBottom: 14, overflow: "hidden" }}>
+				<div style={{ border: "1px solid var(--neutral-200)", borderRadius: 8, marginBottom: 14, maxHeight: 320, overflowY: "auto" }}>
 					{results.map((item) => {
 						const atCap = respectStock && lineQtyFor(item.id) >= item.stock_qty;
 						const outOfStock = respectStock && item.stock_qty <= 0;

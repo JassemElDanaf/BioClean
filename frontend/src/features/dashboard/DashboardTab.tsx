@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import { Link } from "react-router-dom";
+import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
 import StockBadge from "../../components/StockBadge";
 import { listItems } from "../inventory/api";
 import type { Item } from "../inventory/types";
@@ -7,35 +8,40 @@ import { listSales } from "../pos/api";
 import type { Sale } from "../pos/api";
 import { getDashboardSummary, type DashboardFilters, type DashboardSummary } from "./api";
 
-type Preset = "today" | "yesterday" | "week" | "month" | "all";
-
-function isoDate(d: Date): string {
-	return d.toISOString().slice(0, 10);
-}
-
-function presetRange(preset: Preset): DashboardFilters {
-	const today = new Date();
-	if (preset === "all") return {};
-	if (preset === "today") return { from_date: isoDate(today), to_date: isoDate(today) };
-	if (preset === "yesterday") {
-		const y = new Date(today);
-		y.setDate(y.getDate() - 1);
-		return { from_date: isoDate(y), to_date: isoDate(y) };
-	}
-	if (preset === "week") {
-		const from = new Date(today);
-		from.setDate(from.getDate() - 7);
-		return { from_date: isoDate(from), to_date: isoDate(today) };
-	}
-	// month
-	const from = new Date(today);
-	from.setMonth(from.getMonth() - 1);
-	return { from_date: isoDate(from), to_date: isoDate(today) };
-}
+const PRESETS: DateRangePreset[] = [
+	{ key: "today", label: "Today", range: () => ({ from_date: todayIso(), to_date: todayIso() }) },
+	{
+		key: "yesterday",
+		label: "Yesterday",
+		range: () => {
+			const y = new Date();
+			y.setDate(y.getDate() - 1);
+			return { from_date: isoDate(y), to_date: isoDate(y) };
+		},
+	},
+	{
+		key: "week",
+		label: "Last 7 Days",
+		range: () => {
+			const from = new Date();
+			from.setDate(from.getDate() - 7);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{
+		key: "month",
+		label: "Last Month",
+		range: () => {
+			const from = new Date();
+			from.setMonth(from.getMonth() - 1);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{ key: "all", label: "All Time", range: () => ({}) },
+];
 
 export default function DashboardTab() {
-	const [preset, setPreset] = useState<Preset>("today");
-	const [filters, setFilters] = useState<DashboardFilters>(() => presetRange("today"));
+	const [filters, setFilters] = useState<DashboardFilters>(() => PRESETS[0].range());
 	const [summary, setSummary] = useState<DashboardSummary | null>(null);
 	const [lowStockItems, setLowStockItems] = useState<Item[]>([]);
 	const [recentSales, setRecentSales] = useState<Sale[]>([]);
@@ -61,39 +67,18 @@ export default function DashboardTab() {
 
 	useEffect(reload, [filters]);
 
-	function applyPreset(p: Preset) {
-		setPreset(p);
-		setFilters(presetRange(p));
-	}
-
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load dashboard: {error}</div>;
 
 	return (
 		<div>
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
-				<div style={{ display: "flex", gap: 8, flexWrap: "wrap", alignItems: "center" }}>
-					{(["today", "yesterday", "week", "month", "all"] as Preset[]).map((p) => (
-						<button key={p} onClick={() => applyPreset(p)} style={p === preset ? presetActiveStyle : presetStyle}>
-							{p === "today" ? "Today" : p === "yesterday" ? "Yesterday" : p === "week" ? "Last 7 Days" : p === "month" ? "Last Month" : "All Time"}
-						</button>
-					))}
-					<input
-						type="date"
-						value={filters.from_date ?? ""}
-						onChange={(e) => setFilters((f) => ({ ...f, from_date: e.target.value || undefined }))}
-						style={dateInputStyle}
-					/>
-					<span style={{ color: "var(--neutral-500)" }}>to</span>
-					<input
-						type="date"
-						value={filters.to_date ?? ""}
-						onChange={(e) => setFilters((f) => ({ ...f, to_date: e.target.value || undefined }))}
-						style={dateInputStyle}
-					/>
+				<h2 style={{ margin: 0 }}>Dashboard</h2>
+				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+					<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
+					<button onClick={reload} style={presetStyle}>
+						Refresh
+					</button>
 				</div>
-				<button onClick={reload} style={presetStyle}>
-					Refresh
-				</button>
 			</div>
 
 			{loading || !summary ? (
@@ -104,6 +89,7 @@ export default function DashboardTab() {
 						<StatCard label="Total Revenue" value={`$${summary.total_revenue.toFixed(2)}`} />
 						<StatCard label="Transactions" value={String(summary.sales_count)} sub={`avg $${summary.average_sale.toFixed(2)}`} />
 						<StatCard label="Gross Profit" value={`$${summary.gross_profit.toFixed(2)}`} tone={summary.gross_profit >= 0 ? undefined : "warn"} />
+						<StatCard label="Net Profit" value={`$${summary.net_profit.toFixed(2)}`} sub={`after $${summary.expenses_total.toFixed(2)} expenses`} tone={summary.net_profit >= 0 ? undefined : "warn"} />
 						<StatCard
 							label="Unpaid Invoices"
 							value={String(summary.unpaid_invoices_count)}
@@ -183,24 +169,12 @@ function StatCard({ label, value, sub, tone }: { label: string; value: string; s
 const rowStyle: React.CSSProperties = { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 10 };
 const linkStyle: React.CSSProperties = { fontSize: 12, fontWeight: 600, color: "var(--brand)", textDecoration: "none" };
 const presetStyle: React.CSSProperties = {
-	padding: "8px 14px",
+	padding: "10px 16px",
 	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	background: "#fff",
-	fontSize: 13,
-	fontWeight: 600,
+	fontSize: 14,
+	fontWeight: 700,
 	color: "var(--neutral-900)",
 	cursor: "pointer",
-};
-const presetActiveStyle: React.CSSProperties = {
-	...presetStyle,
-	background: "var(--brand)",
-	borderColor: "var(--brand)",
-	color: "#fff",
-};
-const dateInputStyle: React.CSSProperties = {
-	padding: "7px 10px",
-	borderRadius: 8,
-	border: "1px solid var(--neutral-200)",
-	fontSize: 13,
 };

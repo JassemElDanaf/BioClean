@@ -31,7 +31,7 @@ TEMPLATE = Template(
 		font-size: 13px;
 	}
 	.header { display: flex; justify-content: space-between; align-items: flex-start; margin-bottom: 28px; }
-	.logo { height: 46px; }
+	.logo { height: 69px; }
 	.meta { text-align: right; line-height: 1.6; }
 	.meta .doc-no { font-weight: 700; font-size: 15px; }
 	.status { font-weight: 700; color: {{ status_color }}; }

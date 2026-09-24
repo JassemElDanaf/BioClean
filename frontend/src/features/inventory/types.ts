@@ -34,6 +34,9 @@ export interface Supplier {
 	name: string;
 	phone: string | null;
 	email: string | null;
+	// Accounts payable - sum of received-but-unpaid purchase order totals
+	// owed to this supplier, computed by the backend.
+	balance: number;
 }
 
 export interface SupplierFormValues {

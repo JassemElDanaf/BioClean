@@ -41,6 +41,8 @@ export function deleteSupplier(id: number): Promise<void> {
 	return apiRequest<void>(`/suppliers/${id}`, { method: "DELETE" });
 }
 
+export const exportSuppliersCsvUrl = `${API_BASE}/suppliers/export/csv`;
+
 export function uploadItemImage(itemId: number, file: File): Promise<Item> {
 	const formData = new FormData();
 	formData.append("file", file);

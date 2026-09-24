@@ -19,7 +19,7 @@ def create_quotation(db: Session, customer_id: int | None, lines: list[dict], va
 	if customer_id and not customer:
 		raise HTTPException(status_code=404, detail=f"Customer {customer_id} not found")
 
-	quotation = Quotation(customer_id=customer_id, total=0, valid_until=valid_until, notes=notes)
+	quotation = Quotation(customer_id=customer_id, customer_name=customer.name if customer else None, total=0, valid_until=valid_until, notes=notes)
 	db.add(quotation)
 	db.flush()
 
@@ -87,12 +87,24 @@ def delete_quotation(db: Session, quotation: Quotation) -> None:
 	db.commit()
 
 
-def list_quotations(db: Session, skip: int = 0, limit: int = 100, status: str | None = None, customer_id: int | None = None):
+def list_quotations(
+	db: Session,
+	skip: int = 0,
+	limit: int = 100,
+	status: str | None = None,
+	customer_id: int | None = None,
+	from_date=None,
+	to_date=None,
+):
 	base = db.query(Quotation)
 	if status:
 		base = base.filter(Quotation.status == status)
 	if customer_id:
 		base = base.filter(Quotation.customer_id == customer_id)
+	if from_date:
+		base = base.filter(Quotation.created_at >= from_date)
+	if to_date:
+		base = base.filter(Quotation.created_at <= to_date)
 
 	total = base.count()
 	quotations = (

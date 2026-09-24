@@ -1,4 +1,4 @@
-import { apiRequest } from "../../lib/api";
+import { API_BASE, apiRequest } from "../../lib/api";
 import type { Customer, CustomerFormValues } from "./types";
 
 export function listCustomers(q?: string): Promise<Customer[]> {
@@ -15,4 +15,8 @@ export function updateCustomer(id: number, values: CustomerFormValues): Promise<
 
 export function deleteCustomer(id: number): Promise<void> {
 	return apiRequest<void>(`/customers/${id}`, { method: "DELETE" });
+}
+
+export function customersExportCsvUrl(): string {
+	return `${API_BASE}/customers/export/csv`;
 }

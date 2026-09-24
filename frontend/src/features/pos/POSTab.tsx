@@ -3,10 +3,11 @@ import Modal from "../../components/Modal";
 import { CardIcon, CartIcon, CashIcon, MinusIcon, OtherPaymentIcon, PlusIcon, SearchIcon, TrashIcon } from "../../components/icons";
 import StockBadge from "../../components/StockBadge";
 import { ApiError } from "../../lib/api";
+import { useBarcodeScanner } from "../../lib/useBarcodeScanner";
 import { useTaxRate } from "../../lib/currency";
 import { listItems } from "../inventory/api";
 import type { Item } from "../inventory/types";
-import { checkout, type Sale } from "./api";
+import { checkout, printSaleReceipt, type Sale } from "./api";
 
 interface CartLine {
 	item: Item;
@@ -14,11 +15,11 @@ interface CartLine {
 	unitPrice: number;
 }
 
-type PaymentMethod = "cash" | "card" | "other";
+type PaymentMethod = "cash" | "whish" | "other";
 
 const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: typeof CashIcon }[] = [
 	{ value: "cash", label: "Cash", icon: CashIcon },
-	{ value: "card", label: "Card", icon: CardIcon },
+	{ value: "whish", label: "Whish", icon: CardIcon },
 	{ value: "other", label: "Other", icon: OtherPaymentIcon },
 ];
 
@@ -71,6 +72,10 @@ export default function POSTab() {
 	const [checkingOut, setCheckingOut] = useState(false);
 	const [checkoutError, setCheckoutError] = useState<string | null>(null);
 	const [completedSale, setCompletedSale] = useState<Sale | null>(null);
+	const [printing, setPrinting] = useState(false);
+	const [printError, setPrintError] = useState<string | null>(null);
+	const [scanError, setScanError] = useState<string | null>(null);
+	const scanErrorTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null);
 	// One id per checkout attempt - a double-click or a retried request
 	// after a dropped response reuses this same value, so the backend can
 	// tell "this is the same sale again" from "this is a new sale" and
@@ -126,6 +131,31 @@ export default function POSTab() {
 		});
 	}
 
+	function flashScanError(message: string) {
+		if (scanErrorTimeoutRef.current) clearTimeout(scanErrorTimeoutRef.current);
+		setScanError(message);
+		scanErrorTimeoutRef.current = setTimeout(() => setScanError(null), 3000);
+	}
+
+	function handleScan(barcode: string) {
+		const item = items.find((i) => i.barcode === barcode);
+		if (!item) {
+			flashScanError(`No item found for barcode "${barcode}"`);
+			return;
+		}
+		if (item.stock_qty <= 0) {
+			flashScanError(`"${item.item_name}" is out of stock`);
+			return;
+		}
+		addToCart(item);
+	}
+
+	// Works no matter what's focused on this tab (the search box, a qty
+	// input, nothing) - see useBarcodeScanner's docstring for why that's
+	// safe. Disabled while the completed-sale modal is up so a scan can't
+	// silently modify a cart the cashier is done looking at.
+	useBarcodeScanner(handleScan, !completedSale);
+
 	function changeQty(itemId: number, delta: number) {
 		setCart((lines) =>
 			lines
@@ -145,9 +175,25 @@ export default function POSTab() {
 		setPaymentMethod("cash");
 		setCheckoutError(null);
 		setCompletedSale(null);
+		setPrintError(null);
 		// A new sale starting fresh gets its own id - the one that just
 		// completed keeps its key retired forever, matching one key per Sale.
 		checkoutKeyRef.current = generateId();
+	}
+
+	async function handlePrintReceipt(saleId: number) {
+		// A failed/unconfigured printer is never allowed to affect the sale
+		// itself (it's already committed) - this is a standalone, freely
+		// retryable action, same reasoning as the PDF download link.
+		setPrinting(true);
+		setPrintError(null);
+		try {
+			await printSaleReceipt(saleId);
+		} catch (err) {
+			setPrintError(err instanceof ApiError ? err.message : "Couldn't print - check the printer connection.");
+		} finally {
+			setPrinting(false);
+		}
 	}
 
 	async function handleCheckout() {
@@ -192,6 +238,27 @@ export default function POSTab() {
 
 	return (
 		<div style={{ display: "flex", gap: 24, height: "100%" }}>
+			{scanError && (
+				<div
+					style={{
+						position: "fixed",
+						top: 20,
+						left: "50%",
+						transform: "translateX(-50%)",
+						background: "#fde2e2",
+						color: "#b42318",
+						border: "1px solid #f5b5b0",
+						borderRadius: 10,
+						padding: "10px 18px",
+						fontSize: 14,
+						fontWeight: 600,
+						boxShadow: "0 4px 16px rgba(0,0,0,0.12)",
+						zIndex: 2000,
+					}}
+				>
+					{scanError}
+				</div>
+			)}
 			<div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
 				<div style={{ position: "relative", marginBottom: 14 }}>
 					<span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-500)" }}>
@@ -282,17 +349,8 @@ export default function POSTab() {
 						<span style={{ fontSize: 18, fontWeight: 800 }}>${total.toFixed(2)}</span>
 					</div>
 
-					<div style={{ display: "flex", gap: 8, margin: "14px 0 10px" }}>
-						{PAYMENT_METHODS.map((m) => (
-							<button key={m.value} onClick={() => setPaymentMethod(m.value)} style={m.value === paymentMethod ? paymentActiveStyle : paymentStyle}>
-								<m.icon size={15} />
-								{m.label}
-							</button>
-						))}
-					</div>
-
 					{paymentMethod === "cash" && (
-						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
+						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, marginBottom: 10 }}>
 							<label style={{ fontSize: 13, color: "var(--neutral-500)" }}>Amount Tendered</label>
 							<input
 								type="number"
@@ -311,6 +369,15 @@ export default function POSTab() {
 							<span style={{ fontWeight: 700 }}>${(changeDue ?? 0).toFixed(2)}</span>
 						</div>
 					)}
+
+					<div style={{ display: "flex", gap: 8, margin: "4px 0 10px" }}>
+						{PAYMENT_METHODS.map((m) => (
+							<button key={m.value} onClick={() => setPaymentMethod(m.value)} style={m.value === paymentMethod ? paymentActiveStyle : paymentStyle}>
+								<m.icon size={15} />
+								{m.label}
+							</button>
+						))}
+					</div>
 
 					{checkoutError && <div style={{ color: "crimson", fontSize: 13, marginBottom: 10 }}>{checkoutError}</div>}
 
@@ -335,9 +402,15 @@ export default function POSTab() {
 								<SummaryRow label="Change Due" value={`$${(completedSale.change_due ?? 0).toFixed(2)}`} />
 							</>
 						)}
-						<button onClick={resetForNextSale} style={{ ...completeButtonStyle, marginTop: 8 }}>
-							New Sale
-						</button>
+						{printError && <div style={{ color: "crimson", fontSize: 13 }}>{printError}</div>}
+						<div style={{ display: "flex", gap: 8, marginTop: 8 }}>
+							<button onClick={() => handlePrintReceipt(completedSale.id)} disabled={printing} style={{ ...smallButtonStyle, flex: 1, padding: "10px 0" }}>
+								{printing ? "Printing..." : "Print Receipt"}
+							</button>
+							<button onClick={resetForNextSale} style={{ ...completeButtonStyle, flex: 1 }}>
+								New Sale
+							</button>
+						</div>
 					</div>
 				)}
 			</Modal>
@@ -462,6 +535,15 @@ const paymentActiveStyle: React.CSSProperties = {
 	border: "1px solid var(--brand)",
 	background: "var(--brand-pale)",
 	color: "var(--brand)",
+};
+const smallButtonStyle: React.CSSProperties = {
+	borderRadius: 10,
+	border: "1px solid var(--neutral-200)",
+	background: "#fff",
+	color: "var(--neutral-900)",
+	fontSize: 14,
+	fontWeight: 700,
+	cursor: "pointer",
 };
 const completeButtonStyle: React.CSSProperties = {
 	width: "100%",

@@ -17,9 +17,11 @@ from datetime import datetime
 from sqlalchemy import func
 from sqlalchemy.orm import Session
 
+from ..expenses.models import Expense
+from ..income.models import Income
 from ..invoicing.models import Invoice, InvoiceLine
 from ..items.models import Item, ItemStock
-from ..pos.models import Sale, SaleLine
+from ..pos.models import ReturnLine, Sale, SaleLine
 
 
 def get_summary(db: Session, from_date: datetime | None, to_date: datetime | None) -> dict:
@@ -30,15 +32,25 @@ def get_summary(db: Session, from_date: datetime | None, to_date: datetime | Non
 			query = query.filter(date_column <= to_date)
 		return query
 
+	# Net of returns - a partially/fully returned sale isn't real revenue
+	# for the returned portion any more (see pos/service.py:create_return()
+	# and Sale.returned_total's docstring). Attributed back to the
+	# original sale's own date, not the return's - "sales that happened in
+	# this period" should show their current, up-to-date net total
+	# regardless of when a later return against them happened.
 	sales_revenue, sales_count = date_filtered(
-		db.query(func.coalesce(func.sum(Sale.total), 0), func.count(Sale.id)).filter(Sale.voided.is_(False)),
+		db.query(func.coalesce(func.sum(Sale.total - Sale.returned_total), 0), func.count(Sale.id)).filter(Sale.voided.is_(False)),
 		Sale.created_at,
 	).one()
 	sales_revenue = float(sales_revenue)
 
+	returned_qty_by_line = (
+		db.query(ReturnLine.sale_line_id, func.sum(ReturnLine.qty).label("returned_qty")).group_by(ReturnLine.sale_line_id).subquery()
+	)
 	sales_cogs = date_filtered(
-		db.query(func.coalesce(func.sum(SaleLine.qty * SaleLine.unit_cost), 0))
+		db.query(func.coalesce(func.sum((SaleLine.qty - func.coalesce(returned_qty_by_line.c.returned_qty, 0)) * SaleLine.unit_cost), 0))
 		.join(Sale, Sale.id == SaleLine.sale_id)
+		.outerjoin(returned_qty_by_line, returned_qty_by_line.c.sale_line_id == SaleLine.id)
 		.filter(Sale.voided.is_(False)),
 		Sale.created_at,
 	).scalar()
@@ -61,9 +73,16 @@ def get_summary(db: Session, from_date: datetime | None, to_date: datetime | Non
 	).scalar()
 	invoice_cogs = float(invoice_cogs)
 
-	total_revenue = sales_revenue + invoice_revenue
+	manual_income = date_filtered(db.query(func.coalesce(func.sum(Income.amount), 0)), Income.date).scalar()
+	manual_income = float(manual_income)
+
+	expenses_total = date_filtered(db.query(func.coalesce(func.sum(Expense.amount), 0)), Expense.date).scalar()
+	expenses_total = float(expenses_total)
+
+	total_revenue = sales_revenue + invoice_revenue + manual_income
 	cogs = sales_cogs + invoice_cogs
 	gross_profit = total_revenue - cogs
+	net_profit = gross_profit - expenses_total
 	average_sale = sales_revenue / sales_count if sales_count else 0.0
 
 	unpaid_count, unpaid_total = (
@@ -90,10 +109,13 @@ def get_summary(db: Session, from_date: datetime | None, to_date: datetime | Non
 		"sales_revenue": sales_revenue,
 		"sales_count": sales_count,
 		"invoice_revenue": invoice_revenue,
+		"manual_income": manual_income,
 		"total_revenue": total_revenue,
 		"average_sale": average_sale,
 		"cogs": cogs,
 		"gross_profit": gross_profit,
+		"expenses_total": expenses_total,
+		"net_profit": net_profit,
 		"low_stock_count": low_stock_count,
 		"out_of_stock_count": out_of_stock_count,
 		"total_items": total_items,

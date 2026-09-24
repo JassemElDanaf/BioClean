@@ -27,7 +27,10 @@ class SaleLineOut(BaseModel):
 	model_config = ConfigDict(from_attributes=True)
 
 	id: int
-	item_id: int
+	# Nullable once the underlying Item has been deleted - item_name/
+	# barcode/unit_price above are already a full snapshot, so the receipt
+	# still renders correctly either way.
+	item_id: int | None = None
 	item_name: str
 	barcode: str
 	qty: float
@@ -50,4 +53,42 @@ class SaleOut(BaseModel):
 	voided_at: datetime | None = None
 	user: str
 	created_at: datetime
+	returned_total: float
 	lines: list[SaleLineOut]
+
+
+class ReturnLineIn(BaseModel):
+	sale_line_id: int
+	qty: float = Field(gt=0)
+
+
+class ReturnCreate(BaseModel):
+	lines: list[ReturnLineIn] = Field(min_length=1)
+	refund_method: str = "cash"
+	reason: str | None = None
+
+
+class ReturnLineOut(BaseModel):
+	model_config = ConfigDict(from_attributes=True)
+
+	id: int
+	sale_line_id: int
+	item_id: int | None = None
+	item_name: str
+	barcode: str
+	qty: float
+	unit_price: float
+	line_refund: float
+
+
+class ReturnOut(BaseModel):
+	model_config = ConfigDict(from_attributes=True)
+
+	id: int
+	sale_id: int
+	refund_method: str
+	total_refund: float
+	reason: str | None = None
+	user: str
+	created_at: datetime
+	lines: list[ReturnLineOut]

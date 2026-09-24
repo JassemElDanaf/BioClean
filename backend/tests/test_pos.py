@@ -123,11 +123,120 @@ def test_list_sales_total_count_matches_full_count_not_page_size(client):
 	assert int(res.headers["x-total-count"]) == 3
 
 
-def test_deleting_sold_item_is_blocked_by_existing_stock_history_check(client):
-	"""No new guard needed in pos/service.py for this - checkout() writes a
-	pos_sale StockMovement, which items.service.has_stock_history() (used by
-	is_safe_to_delete) already treats as real history."""
-	item = make_item(client)
-	client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 1}]})
+def test_deleting_sold_item_detaches_but_preserves_sale_history(client):
+	"""Deleting an item that's been sold is allowed - SaleLine already
+	snapshotted item_name/barcode/unit_price at sale time, so the sale
+	keeps showing exactly what was sold with item_id simply nulled out."""
+	item = make_item(client, item_name="Widget To Delete")
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 1}]}).json()
+
 	res = client.delete(f"{ITEMS_URL}/{item['id']}")
+	assert res.status_code == 204
+
+	sale_after = client.get(f"{SALES_URL}/{sale['id']}").json()
+	assert sale_after["lines"][0]["item_id"] is None
+	assert sale_after["lines"][0]["item_name"] == "Widget To Delete"
+	assert sale_after["lines"][0]["line_total"] == sale["lines"][0]["line_total"]
+
+
+def test_partial_return_restores_stock_and_updates_sale(client):
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 5}]}).json()
+	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 5
+
+	sale_line_id = sale["lines"][0]["id"]
+	res = client.post(
+		f"{SALES_URL}/{sale['id']}/return",
+		json={"lines": [{"sale_line_id": sale_line_id, "qty": 2}], "refund_method": "cash", "reason": "wrong item"},
+	)
+	assert res.status_code == 201, res.text
+	ret = res.json()
+	assert ret["total_refund"] == 10.0  # 2 * unit_price 5.0
+	assert ret["lines"][0]["qty"] == 2
+
+	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 7
+
+	sale_after = client.get(f"{SALES_URL}/{sale['id']}").json()
+	assert sale_after["returned_total"] == 10.0
+
+
+def test_return_cannot_exceed_remaining_quantity(client):
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 3}]}).json()
+	sale_line_id = sale["lines"][0]["id"]
+
+	res = client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 4}]})
 	assert res.status_code == 409
+
+
+def test_return_accounts_for_earlier_partial_returns(client):
+	"""A second return against the same line can't exceed what's left after
+	the first one - covers the "remaining" math, not just the qty-sold cap."""
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 5}]}).json()
+	sale_line_id = sale["lines"][0]["id"]
+
+	res1 = client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 3}]})
+	assert res1.status_code == 201, res1.text
+
+	res2 = client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 3}]})
+	assert res2.status_code == 409
+
+	res3 = client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 2}]})
+	assert res3.status_code == 201, res3.text
+
+	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 10
+
+
+def test_return_rejects_unknown_sale_line(client):
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 2}]}).json()
+
+	res = client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": 999999, "qty": 1}]})
+	assert res.status_code == 404
+
+
+def test_return_rejected_for_voided_sale(client):
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 2}]}).json()
+	client.post(f"{SALES_URL}/{sale['id']}/void")
+
+	sale_line_id = sale["lines"][0]["id"]
+	res = client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 1}]})
+	assert res.status_code == 409
+
+
+def test_list_returns_for_sale(client):
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 5}]}).json()
+	sale_line_id = sale["lines"][0]["id"]
+
+	client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 1}]})
+	client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 1}]})
+
+	res = client.get(f"{SALES_URL}/{sale['id']}/returns")
+	assert res.status_code == 200
+	assert len(res.json()) == 2
+
+
+def test_return_on_unknown_sale_404s(client):
+	res = client.post(f"{SALES_URL}/999999/return", json={"lines": [{"sale_line_id": 1, "qty": 1}]})
+	assert res.status_code == 404
+
+
+def test_void_after_partial_return_does_not_double_restore_stock(client):
+	"""A sale of 5, with 2 already returned (already back in stock), then
+	voided must only restore the remaining 3 - not all 5 again, which
+	would inflate stock above what was ever really sold."""
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 5}]}).json()
+	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 5
+
+	sale_line_id = sale["lines"][0]["id"]
+	client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 2}]})
+	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 7
+
+	res = client.post(f"{SALES_URL}/{sale['id']}/void")
+	assert res.status_code == 200
+	# Back to the original 10 - not 12 (which double-restoring the already-returned 2 would give).
+	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 10

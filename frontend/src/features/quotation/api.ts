@@ -16,7 +16,7 @@ export interface CreateQuotationPayload {
 
 export interface QuotationLine {
 	id: number;
-	item_id: number;
+	item_id: number | null;
 	item_name: string;
 	barcode: string;
 	qty: number;
@@ -42,8 +42,16 @@ export function createQuotation(payload: CreateQuotationPayload): Promise<Quotat
 	return apiRequest<Quotation>("/quotations", { method: "POST", body: JSON.stringify(payload) });
 }
 
-export function listQuotations(): Promise<{ quotations: Quotation[]; total: number }> {
-	return apiRequestWithCount<Quotation[]>("/quotations?limit=500").then(({ data, total }) => ({ quotations: data, total }));
+export interface QuotationFilters {
+	from_date?: string;
+	to_date?: string;
+}
+
+export function listQuotations(filters: QuotationFilters = {}): Promise<{ quotations: Quotation[]; total: number }> {
+	const params = new URLSearchParams({ limit: "500" });
+	if (filters.from_date) params.set("from_date", filters.from_date);
+	if (filters.to_date) params.set("to_date", filters.to_date);
+	return apiRequestWithCount<Quotation[]>(`/quotations?${params.toString()}`).then(({ data, total }) => ({ quotations: data, total }));
 }
 
 export function deleteQuotation(id: number): Promise<void> {

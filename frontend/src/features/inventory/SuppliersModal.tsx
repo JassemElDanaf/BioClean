@@ -1,7 +1,7 @@
 import { useEffect, useState } from "react";
 import Modal from "../../components/Modal";
 import { ApiError } from "../../lib/api";
-import { createSupplier, deleteSupplier, updateSupplier } from "./api";
+import { createSupplier, deleteSupplier, exportSuppliersCsvUrl, updateSupplier } from "./api";
 import type { Supplier, SupplierFormValues } from "./types";
 
 const EMPTY: SupplierFormValues = { name: "", phone: "", email: "" };
@@ -80,6 +80,11 @@ export default function SuppliersModal({
 
 	return (
 		<Modal open={open} onClose={onClose} title="Suppliers">
+			<div style={{ display: "flex", justifyContent: "flex-end", marginBottom: 8 }}>
+				<a href={exportSuppliersCsvUrl} style={{ ...smallButtonStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
+					Export Balances CSV
+				</a>
+			</div>
 			<div style={{ display: "grid", gap: 6, marginBottom: 16, maxHeight: 220, overflowY: "auto" }}>
 				{suppliers.length === 0 && <div style={{ fontSize: 13, color: "var(--neutral-500)" }}>No suppliers yet.</div>}
 				{suppliers.map((s) => (
@@ -87,6 +92,9 @@ export default function SuppliersModal({
 						<div>
 							<div style={{ fontSize: 14, fontWeight: 600 }}>{s.name}</div>
 							<div style={{ fontSize: 12, color: "var(--neutral-500)" }}>{[s.phone, s.email].filter(Boolean).join(" · ") || "—"}</div>
+							{s.balance > 0 && (
+								<div style={{ fontSize: 12, color: "#b45f06", fontWeight: 700, marginTop: 2 }}>${s.balance.toFixed(2)} owed (AP)</div>
+							)}
 						</div>
 						<div style={{ display: "flex", gap: 6 }}>
 							<button type="button" onClick={() => startEdit(s)} style={smallButtonStyle}>

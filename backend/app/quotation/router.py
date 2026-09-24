@@ -1,3 +1,5 @@
+from datetime import date, datetime, time
+
 from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
@@ -9,11 +11,17 @@ from . import models, schemas, service
 router = APIRouter(prefix="/quotations", tags=["quotation"])
 
 
+def _parse_date_range(from_date: str | None, to_date: str | None) -> tuple[datetime | None, datetime | None]:
+	start = datetime.combine(date.fromisoformat(from_date), time.min) if from_date else None
+	end = datetime.combine(date.fromisoformat(to_date), time.max) if to_date else None
+	return start, end
+
+
 def _to_out(quotation: models.Quotation) -> schemas.QuotationOut:
 	return schemas.QuotationOut(
 		id=quotation.id,
 		customer_id=quotation.customer_id,
-		customer_name=quotation.customer.name if quotation.customer else None,
+		customer_name=quotation.customer_name,
 		total=quotation.total,
 		status=quotation.status,
 		valid_until=quotation.valid_until,
@@ -44,9 +52,12 @@ def list_quotations(
 	limit: int = Query(default=100, le=1000),
 	status: str | None = None,
 	customer_id: int | None = None,
+	from_date: str | None = None,
+	to_date: str | None = None,
 	db: Session = Depends(get_db),
 ):
-	quotations, total = service.list_quotations(db, skip=skip, limit=limit, status=status, customer_id=customer_id)
+	start, end = _parse_date_range(from_date, to_date)
+	quotations, total = service.list_quotations(db, skip=skip, limit=limit, status=status, customer_id=customer_id, from_date=start, to_date=end)
 	response.headers["X-Total-Count"] = str(total)
 	return [_to_out(q) for q in quotations]
 

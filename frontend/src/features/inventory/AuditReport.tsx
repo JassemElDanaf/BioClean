@@ -1,4 +1,5 @@
 import { useEffect, useState } from "react";
+import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
 import { auditExportCsvUrl, getAuditReport, listItems, listWarehouses } from "./api";
 import type { AuditFilters, AuditReportRow, Item, Warehouse } from "./types";
 
@@ -15,16 +16,35 @@ const REASON_LABELS: Record<string, string> = {
 	manual: "Manual adjustment",
 };
 
-function todayIso(): string {
-	return new Date().toISOString().slice(0, 10);
-}
+const PRESETS: DateRangePreset[] = [
+	{ key: "today", label: "Today", range: () => ({ from_date: todayIso(), to_date: todayIso() }) },
+	{
+		key: "week",
+		label: "This Week",
+		range: () => {
+			const from = new Date();
+			from.setDate(from.getDate() - 7);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{
+		key: "month",
+		label: "This Month",
+		range: () => {
+			const from = new Date();
+			from.setMonth(from.getMonth() - 1);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{ key: "all", label: "All Time", range: () => ({ from_date: undefined, to_date: undefined }) },
+];
 
 export default function AuditReport() {
 	const [rows, setRows] = useState<AuditReportRow[]>([]);
 	const [items, setItems] = useState<Item[]>([]);
 	const [warehouses, setWarehouses] = useState<Warehouse[]>([]);
 	const [loading, setLoading] = useState(true);
-	const [filters, setFilters] = useState<AuditFilters>({});
+	const [filters, setFilters] = useState<AuditFilters>(() => PRESETS[0].range());
 
 	useEffect(() => {
 		Promise.all([listItems(), listWarehouses()]).then(([itemsResult, warehousesData]) => {
@@ -40,54 +60,17 @@ export default function AuditReport() {
 			.finally(() => setLoading(false));
 	}, [filters]);
 
-	function setPreset(preset: "today" | "week" | "month" | "all") {
-		const today = new Date();
-		if (preset === "all") {
-			setFilters((f) => ({ ...f, from_date: undefined, to_date: undefined }));
-			return;
-		}
-		const from = new Date(today);
-		if (preset === "week") from.setDate(from.getDate() - 7);
-		if (preset === "month") from.setMonth(from.getMonth() - 1);
-		setFilters((f) => ({ ...f, from_date: from.toISOString().slice(0, 10), to_date: todayIso() }));
-	}
-
 	return (
 		<div>
 			<h2 style={{ marginTop: 0 }}>Inventory Audit Report</h2>
 
 			<div style={{ display: "flex", gap: 8, flexWrap: "wrap", marginBottom: 16, alignItems: "flex-end" }}>
-				<div style={{ display: "flex", gap: 6 }}>
-					<button onClick={() => setPreset("today")} style={presetButtonStyle}>
-						Today
-					</button>
-					<button onClick={() => setPreset("week")} style={presetButtonStyle}>
-						This Week
-					</button>
-					<button onClick={() => setPreset("month")} style={presetButtonStyle}>
-						This Month
-					</button>
-					<button onClick={() => setPreset("all")} style={presetButtonStyle}>
-						All Time
-					</button>
-				</div>
+				<DateRangeFilter
+					presets={PRESETS}
+					value={{ from_date: filters.from_date, to_date: filters.to_date }}
+					onChange={(range) => setFilters((f) => ({ ...f, ...range }))}
+				/>
 
-				<Field label="From">
-					<input
-						type="date"
-						value={filters.from_date ?? ""}
-						onChange={(e) => setFilters((f) => ({ ...f, from_date: e.target.value || undefined }))}
-						style={inputStyle}
-					/>
-				</Field>
-				<Field label="To">
-					<input
-						type="date"
-						value={filters.to_date ?? ""}
-						onChange={(e) => setFilters((f) => ({ ...f, to_date: e.target.value || undefined }))}
-						style={inputStyle}
-					/>
-				</Field>
 				<Field label="Item">
 					<select
 						value={filters.item_id ?? ""}
@@ -206,15 +189,6 @@ const inputStyle: React.CSSProperties = {
 	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	fontSize: 13,
-};
-const presetButtonStyle: React.CSSProperties = {
-	padding: "8px 12px",
-	borderRadius: 8,
-	border: "1px solid var(--neutral-200)",
-	background: "#fff",
-	fontSize: 13,
-	fontWeight: 600,
-	cursor: "pointer",
 };
 const secondaryButtonStyle: React.CSSProperties = {
 	padding: "8px 14px",

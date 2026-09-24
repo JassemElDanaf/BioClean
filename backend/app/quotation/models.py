@@ -18,6 +18,9 @@ class Quotation(Base):
 
 	id = Column(Integer, primary_key=True, index=True)
 	customer_id = Column(Integer, ForeignKey("customers.id"), nullable=True)
+	# Snapshotted from customer.name at creation time - see
+	# Invoice.customer_name's docstring for why.
+	customer_name = Column(String, nullable=True)
 	total = Column(Numeric(12, 2), nullable=False)
 	status = Column(String, nullable=False, default="draft")
 	valid_until = Column(DateTime(timezone=True), nullable=True)
@@ -39,7 +42,10 @@ class QuotationLine(Base):
 
 	id = Column(Integer, primary_key=True, index=True)
 	quotation_id = Column(Integer, ForeignKey("quotations.id"), nullable=False, index=True)
-	item_id = Column(Integer, ForeignKey("items.id"), nullable=False, index=True)
+	# Nullable so the underlying Item can be deleted without destroying
+	# this quotation's own history - item_name/barcode/unit_price below
+	# are already a full snapshot.
+	item_id = Column(Integer, ForeignKey("items.id"), nullable=True, index=True)
 	item_name = Column(String, nullable=False)
 	barcode = Column(String, nullable=False)
 	qty = Column(Numeric(12, 2), nullable=False)

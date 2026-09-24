@@ -21,7 +21,7 @@ def test_update_supplier(client):
 	created = client.post(SUPPLIERS_URL, json={"name": "Acme Co"}).json()
 	res = client.put(f"{SUPPLIERS_URL}/{created['id']}", json={"name": "Acme Corp", "phone": "71111111"})
 	assert res.status_code == 200
-	assert res.json() == {"id": created["id"], "name": "Acme Corp", "phone": "71111111", "email": None}
+	assert res.json() == {"id": created["id"], "name": "Acme Corp", "phone": "71111111", "email": None, "balance": 0.0}
 
 
 def test_update_supplier_to_existing_name_rejected(client):
@@ -38,11 +38,17 @@ def test_delete_unused_supplier(client):
 	assert client.get(SUPPLIERS_URL).json() == []
 
 
-def test_delete_supplier_in_use_is_blocked(client):
+def test_delete_supplier_in_use_detaches_but_preserves_po_history(client):
+	"""Deleting a supplier with PO history is allowed - PurchaseOrder
+	already snapshots supplier_name at creation time, so the order keeps
+	showing who it was bought from with supplier_id simply nulled out."""
 	supplier = client.post(SUPPLIERS_URL, json={"name": "Acme Co"}).json()
 	item = client.post(ITEMS_URL, json={"item_name": "Widget", "barcode": "W-1"}).json()
-	client.post("/api/v1/purchases", json={"supplier_id": supplier["id"], "lines": [{"item_id": item["id"], "qty": 1}]})
+	po = client.post("/api/v1/purchases", json={"supplier_id": supplier["id"], "lines": [{"item_id": item["id"], "qty": 1}]}).json()
 
 	res = client.delete(f"{SUPPLIERS_URL}/{supplier['id']}")
-	assert res.status_code == 409
-	assert client.get(SUPPLIERS_URL).json() != []
+	assert res.status_code == 204
+
+	po_after = client.get(f"/api/v1/purchases/{po['id']}").json()
+	assert po_after["supplier_id"] is None
+	assert po_after["supplier_name"] == "Acme Co"

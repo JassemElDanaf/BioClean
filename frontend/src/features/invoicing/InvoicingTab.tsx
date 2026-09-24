@@ -1,4 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
+import ActionsMenu from "../../components/ActionsMenu";
 import DocumentLineBuilder, { type DraftLine } from "../../components/DocumentLineBuilder";
 import Modal from "../../components/Modal";
 import { ApiError } from "../../lib/api";
@@ -7,7 +8,32 @@ import CustomerFormModal from "../customers/CustomerFormModal";
 import type { Customer, CustomerFormValues } from "../customers/types";
 import { listItems } from "../inventory/api";
 import type { Item } from "../inventory/types";
+import DateRangeFilter, { isoDate, todayIso, type DateRangePreset, type DateRangeValue } from "../../components/DateRangeFilter";
+import { useExchangeRate, usdToLbp } from "../../lib/currency";
 import { createInvoice, invoicePdfUrl, listInvoices, markInvoicePaid, voidInvoice, type Invoice } from "./api";
+
+const PRESETS: DateRangePreset[] = [
+	{ key: "today", label: "Today", range: () => ({ from_date: todayIso(), to_date: todayIso() }) },
+	{
+		key: "week",
+		label: "This Week",
+		range: () => {
+			const from = new Date();
+			from.setDate(from.getDate() - 7);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{
+		key: "month",
+		label: "This Month",
+		range: () => {
+			const from = new Date();
+			from.setMonth(from.getMonth() - 1);
+			return { from_date: isoDate(from), to_date: todayIso() };
+		},
+	},
+	{ key: "all", label: "All Time", range: () => ({}) },
+];
 
 // Local YYYY-MM-DD (not toISOString, which shifts to UTC and can land on
 // the wrong day depending on timezone/time-of-day) - matches what
@@ -29,6 +55,10 @@ function statusPill(status: Invoice["status"]): React.CSSProperties {
 }
 
 export default function InvoicingTab() {
+	// The invoice's own stored exchange_rate (historical, immutable) does
+	// the USD->LBP math; the CURRENT rounding preference (a display
+	// concern, not a historical fact) decides how that figure rounds.
+	const exchangeRate = useExchangeRate();
 	const [items, setItems] = useState<Item[]>([]);
 	const [customers, setCustomers] = useState<Customer[]>([]);
 	const [invoices, setInvoices] = useState<Invoice[]>([]);
@@ -45,12 +75,14 @@ export default function InvoicingTab() {
 
 	const [viewing, setViewing] = useState<Invoice | null>(null);
 	const [actionError, setActionError] = useState<string | null>(null);
+	const [dateFilters, setDateFilters] = useState<DateRangeValue>(() => PRESETS[0].range());
+	const [formOpen, setFormOpen] = useState(false);
 
 	const selectedCustomer = customers.find((c) => c.id === customerId) ?? null;
 
 	function reloadAll() {
 		setLoading(true);
-		Promise.all([listItems(), listCustomers(), listInvoices()])
+		Promise.all([listItems(), listCustomers(), listInvoices(dateFilters)])
 			.then(([itemsResult, customersResult, invoicesResult]) => {
 				setItems(itemsResult.items);
 				setCustomers(customersResult);
@@ -61,7 +93,7 @@ export default function InvoicingTab() {
 			.finally(() => setLoading(false));
 	}
 
-	useEffect(reloadAll, []);
+	useEffect(reloadAll, [dateFilters]);
 
 	function priceFor(item: Item): number {
 		return selectedCustomer?.is_wholesale ? item.wholesale_price : item.retail_price;
@@ -106,6 +138,7 @@ export default function InvoicingTab() {
 			setCustomerId("");
 			setDueDate(todayDateInput());
 			setNotes("");
+			setFormOpen(false);
 			reloadAll();
 		} catch (err) {
 			setCreateError(err instanceof ApiError ? err.message : "Couldn't create this invoice.");
@@ -153,54 +186,65 @@ export default function InvoicingTab() {
 
 	return (
 		<div>
-			<h2 style={{ marginTop: 0 }}>New Invoice</h2>
-			<div style={{ display: "flex", gap: 20, marginBottom: 32, alignItems: "flex-start" }}>
-				<div style={{ flex: 1, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16 }}>
-					<DocumentLineBuilder items={items} lines={lines} respectStock={false} onAdd={addLine} onChangeQty={changeQty} onRemove={removeLine} priceFor={priceFor} />
-				</div>
-
-				<div style={{ width: 320, flexShrink: 0, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, display: "grid", gap: 10 }}>
-					<label style={fieldLabelStyle}>
-						Customer
-						<div style={{ display: "flex", gap: 6 }}>
-							<select value={customerId} onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : "")} style={{ ...inputStyle, flex: 1 }}>
-								<option value="">Walk-in / no customer</option>
-								{customers.map((c) => (
-									<option key={c.id} value={c.id}>
-										{c.name} {c.is_wholesale ? "(wholesale)" : ""}
-									</option>
-								))}
-							</select>
-							<button type="button" onClick={() => setAddingCustomer(true)} style={addCustomerButtonStyle}>
-								+ New
-							</button>
-						</div>
-					</label>
-					<label style={fieldLabelStyle}>
-						Due Date (optional)
-						<input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
-					</label>
-					<label style={fieldLabelStyle}>
-						Notes (optional)
-						<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-					</label>
-
-					<div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--neutral-200)", paddingTop: 10, marginTop: 4 }}>
-						<span style={{ fontWeight: 700 }}>Total</span>
-						<span style={{ fontWeight: 800, fontSize: 18 }}>${total.toFixed(2)}</span>
-					</div>
-
-					{createError && <div style={{ color: "crimson", fontSize: 13 }}>{createError}</div>}
-
-					<button onClick={handleCreate} disabled={lines.length === 0 || saving} style={lines.length === 0 || saving ? primaryButtonDisabledStyle : primaryButtonStyle}>
-						{saving ? "Creating..." : "Create Invoice"}
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
+				<h2 style={{ margin: 0 }}>Invoice History ({invoices.length})</h2>
+				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+					<DateRangeFilter presets={PRESETS} value={dateFilters} onChange={setDateFilters} />
+					<button onClick={() => setFormOpen((v) => !v)} style={primaryButtonStyle}>
+						{formOpen ? "Cancel" : "+ New Invoice"}
 					</button>
 				</div>
 			</div>
 
-			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12 }}>
-				<h2 style={{ margin: 0 }}>Invoice History ({invoices.length})</h2>
-			</div>
+			{formOpen && (
+				<div style={{ display: "flex", gap: 20, marginBottom: 24, alignItems: "flex-start" }}>
+					<div style={{ flex: 1, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16 }}>
+						<DocumentLineBuilder items={items} lines={lines} respectStock={false} onAdd={addLine} onChangeQty={changeQty} onRemove={removeLine} priceFor={priceFor} />
+					</div>
+
+					<div style={{ width: 320, flexShrink: 0, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, display: "grid", gap: 10 }}>
+						<label style={fieldLabelStyle}>
+							Customer
+							<div style={{ display: "flex", gap: 6 }}>
+								<select value={customerId} onChange={(e) => setCustomerId(e.target.value ? Number(e.target.value) : "")} style={{ ...inputStyle, flex: 1 }}>
+									<option value="">Walk-in / no customer</option>
+									{customers.map((c) => (
+										<option key={c.id} value={c.id}>
+											{c.name} {c.is_wholesale ? "(wholesale)" : ""}
+										</option>
+									))}
+								</select>
+								<button type="button" onClick={() => setAddingCustomer(true)} style={addCustomerButtonStyle}>
+									+ New
+								</button>
+							</div>
+						</label>
+						<label style={fieldLabelStyle}>
+							Due Date (optional)
+							<input type="date" value={dueDate} onChange={(e) => setDueDate(e.target.value)} style={inputStyle} />
+						</label>
+						<label style={fieldLabelStyle}>
+							Notes (optional)
+							<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
+						</label>
+
+						<div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--neutral-200)", paddingTop: 10, marginTop: 4 }}>
+							<span style={{ fontWeight: 700 }}>Total</span>
+							<span style={{ fontWeight: 800, fontSize: 18 }}>${total.toFixed(2)}</span>
+						</div>
+
+						{createError && <div style={{ color: "crimson", fontSize: 13 }}>{createError}</div>}
+
+						<button onClick={handleCreate} disabled={lines.length === 0 || saving} style={lines.length === 0 || saving ? primaryButtonDisabledStyle : primaryButtonStyle}>
+							{saving ? "Creating..." : "Create Invoice"}
+						</button>
+					</div>
+				</div>
+			)}
+
+			{actionError && (
+				<div style={{ background: "#fde2e2", color: "#b42318", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{actionError}</div>
+			)}
 
 			<div style={{ background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
 				<table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse" }}>
@@ -225,14 +269,14 @@ export default function InvoicingTab() {
 									<span style={statusPill(inv.status)}>{inv.status}</span>
 								</td>
 								<td style={tdStyle}>
-									<div style={{ display: "flex", gap: 6 }}>
-										<button onClick={() => setViewing(inv)} style={smallButtonStyle}>
-											View
-										</button>
-										<a href={invoicePdfUrl(inv.id)} target="_blank" rel="noreferrer" style={{ ...smallButtonStyle, textDecoration: "none", display: "inline-flex", alignItems: "center" }}>
-											PDF
-										</a>
-									</div>
+									<ActionsMenu
+										actions={[
+											{ label: "View", onClick: () => setViewing(inv) },
+											{ label: "Download PDF", onClick: () => window.open(invoicePdfUrl(inv.id), "_blank") },
+											...(inv.status === "unpaid" ? [{ label: "Mark Paid", onClick: () => handleMarkPaid(inv) }] : []),
+											...(inv.status !== "voided" ? [{ label: "Void", onClick: () => handleVoid(inv), danger: true }] : []),
+										]}
+									/>
 								</td>
 							</tr>
 						))}
@@ -269,7 +313,7 @@ export default function InvoicingTab() {
 						</div>
 						{viewing.exchange_rate > 0 && (
 							<div style={{ display: "flex", justifyContent: "space-between", fontSize: 12, color: "var(--neutral-500)", marginTop: 2 }}>
-								<span>≈ {Math.round(viewing.total * viewing.exchange_rate).toLocaleString()} LBP</span>
+								<span>≈ {usdToLbp(viewing.total, viewing.exchange_rate, exchangeRate?.rounding ?? 1).toLocaleString()} LBP</span>
 								<span>@ {viewing.exchange_rate.toLocaleString()} LBP/$ on issue date</span>
 							</div>
 						)}

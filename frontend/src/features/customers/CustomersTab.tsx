@@ -2,7 +2,7 @@ import { useEffect, useMemo, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
 import { SearchIcon } from "../../components/icons";
 import { ApiError } from "../../lib/api";
-import { createCustomer, deleteCustomer, listCustomers, updateCustomer } from "./api";
+import { createCustomer, customersExportCsvUrl, deleteCustomer, listCustomers, updateCustomer } from "./api";
 import CustomerFormModal from "./CustomerFormModal";
 import type { Customer, CustomerFormValues } from "./types";
 
@@ -63,6 +63,9 @@ export default function CustomersTab() {
 						</span>
 						<input value={search} onChange={(e) => setSearch(e.target.value)} placeholder="Search name, phone, email..." style={searchInputStyle} />
 					</div>
+					<a href={customersExportCsvUrl()} style={secondaryButtonStyle}>
+						Export CSV
+					</a>
 					<button
 						onClick={() => {
 							setEditing(null);
@@ -83,6 +86,7 @@ export default function CustomersTab() {
 							<th style={thStyle}>Phone</th>
 							<th style={thStyle}>Email</th>
 							<th style={thStyle}>Pricing</th>
+							<th style={{ ...thStyle, textAlign: "right" }}>Balance (AR)</th>
 							<th style={thStyle}></th>
 						</tr>
 					</thead>
@@ -98,6 +102,9 @@ export default function CustomersTab() {
 									) : (
 										<span style={pillStyle("var(--neutral-100)", "var(--neutral-500)")}>Retail</span>
 									)}
+								</td>
+								<td style={{ ...tdStyle, textAlign: "right", fontWeight: c.balance > 0 ? 700 : 400, color: c.balance > 0 ? "#b45f06" : "var(--neutral-500)" }}>
+									{c.balance > 0 ? `$${c.balance.toFixed(2)}` : "-"}
 								</td>
 								<td style={tdStyle}>
 									<ActionsMenu
@@ -117,7 +124,7 @@ export default function CustomersTab() {
 						))}
 						{visible.length === 0 && (
 							<tr>
-								<td colSpan={5} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
+								<td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
 									{search ? `No customers match "${search}".` : "No customers yet."}
 								</td>
 							</tr>
@@ -152,5 +159,16 @@ const primaryButtonStyle: React.CSSProperties = {
 	color: "#fff",
 	fontSize: 13,
 	fontWeight: 700,
+	cursor: "pointer",
+};
+const secondaryButtonStyle: React.CSSProperties = {
+	padding: "8px 14px",
+	borderRadius: 8,
+	border: "1px solid var(--neutral-200)",
+	background: "#fff",
+	fontSize: 13,
+	fontWeight: 600,
+	color: "var(--neutral-900)",
+	textDecoration: "none",
 	cursor: "pointer",
 };

@@ -30,10 +30,10 @@ export default function InventoryTab() {
 	const [sortKey, setSortKey] = useState<SortKey>("item_name");
 	const [sortDir, setSortDir] = useState<"asc" | "desc">("asc");
 	const [currency, setCurrency] = useState<Currency>("USD");
-	const rate = useExchangeRate();
+	const exchangeRate = useExchangeRate();
 
 	function formatPrice(amountUsd: number): string {
-		if (currency === "LBP" && rate) return `${usdToLbp(amountUsd, rate).toLocaleString()} LBP`;
+		if (currency === "LBP" && exchangeRate) return `${usdToLbp(amountUsd, exchangeRate.rate, exchangeRate.rounding).toLocaleString()} LBP`;
 		return `$${amountUsd.toFixed(2)}`;
 	}
 

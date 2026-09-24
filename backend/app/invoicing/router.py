@@ -16,7 +16,7 @@ def _to_out(invoice: models.Invoice) -> schemas.InvoiceOut:
 	return schemas.InvoiceOut(
 		id=invoice.id,
 		customer_id=invoice.customer_id,
-		customer_name=invoice.customer.name if invoice.customer else None,
+		customer_name=invoice.customer_name,
 		warehouse_id=invoice.warehouse_id,
 		total=invoice.total,
 		exchange_rate=invoice.exchange_rate,
@@ -75,7 +75,7 @@ def export_invoices_csv(from_date: str | None = None, to_date: str | None = None
 		{
 			"Invoice #": inv.id,
 			"Date": inv.created_at.strftime("%Y-%m-%d %H:%M"),
-			"Customer": inv.customer.name if inv.customer else "",
+			"Customer": inv.customer_name or "",
 			"Item": line.item_name,
 			"Barcode": line.barcode,
 			"Qty": line.qty,

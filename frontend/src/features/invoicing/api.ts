@@ -15,7 +15,7 @@ export interface CreateInvoicePayload {
 
 export interface InvoiceLine {
 	id: number;
-	item_id: number;
+	item_id: number | null;
 	item_name: string;
 	barcode: string;
 	qty: number;
