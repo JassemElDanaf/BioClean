@@ -1,90 +1,146 @@
-import { useState } from "react";
-import Select from "./Select";
+import { useEffect, useRef, useState } from "react";
+import { ChevronRightIcon, SearchIcon } from "./icons";
 
-// A closed dropdown of every category already in use, with an explicit
-// "+ New" escape hatch to type a brand-new one - same two-part pattern as
-// picking a customer elsewhere in the app (a Select plus a "+ New" button
-// next to it, see CustomerFormModal/QuotationTab/InvoicingTab). Replaces a
-// plain free-text input with a <datalist> - a native datalist quietly lets
-// you type anything, but nothing about it visibly says "you can add a new
-// one", which is exactly what this makes explicit.
+// Same searchable-dropdown shape as CustomerPicker (trigger button + a
+// popover with a search box on top and a filtered list below) - but
+// local/synchronous, not server-backed, since the category list here is
+// already a short array the caller already has in memory. Typing IS the
+// value (there's no separate "pick" vs "type a new one" mode to get stuck
+// in): it filters the list live, and whatever's currently typed is what
+// this field holds - clicking a suggestion just fills the box with it,
+// same as clicking an autocomplete suggestion anywhere else.
 export default function CategoryPicker({
 	value,
 	onChange,
 	categories,
-	placeholder = "Select a category...",
+	placeholder = "Select or type a category...",
 }: {
 	value: string;
 	onChange: (value: string) => void;
 	categories: string[];
 	placeholder?: string;
 }) {
-	// Starts in "typing a new one" mode whenever there's nothing to pick
-	// from yet, or the current value doesn't match any known category
-	// (editing an item whose category was renamed/removed elsewhere, or a
-	// value just typed in this same session before categories reloaded).
-	const [addingNew, setAddingNew] = useState(() => categories.length === 0 || (value !== "" && !categories.includes(value)));
+	const [open, setOpen] = useState(false);
+	const containerRef = useRef<HTMLDivElement>(null);
+	const inputRef = useRef<HTMLInputElement>(null);
 
-	if (addingNew) {
-		return (
-			<div style={{ display: "flex", gap: 6 }}>
-				<input value={value} onChange={(e) => onChange(e.target.value)} placeholder="New category name" autoFocus style={inputStyle} />
-				{categories.length > 0 && (
-					<button
-						type="button"
-						onClick={() => {
-							setAddingNew(false);
-							onChange("");
-						}}
-						style={cancelButtonStyle}
-					>
-						Cancel
-					</button>
-				)}
-			</div>
-		);
+	useEffect(() => {
+		if (!open) return;
+		function handleClickOutside(e: MouseEvent) {
+			if (containerRef.current && !containerRef.current.contains(e.target as Node)) setOpen(false);
+		}
+		document.addEventListener("mousedown", handleClickOutside);
+		return () => document.removeEventListener("mousedown", handleClickOutside);
+	}, [open]);
+
+	function handleOpen() {
+		setOpen(true);
+		setTimeout(() => inputRef.current?.select(), 0);
 	}
 
+	const q = value.trim().toLowerCase();
+	const matches = q ? categories.filter((c) => c.toLowerCase().includes(q)) : categories;
+	const isNewCategory = q !== "" && !categories.some((c) => c.toLowerCase() === q);
+
 	return (
-		<div style={{ display: "flex", gap: 6 }}>
-			<div style={{ flex: 1, minWidth: 0 }}>
-				<Select value={value} onChange={onChange} options={categories.map((c) => ({ value: c, label: c }))} placeholder={placeholder} />
-			</div>
-			<button type="button" onClick={() => setAddingNew(true)} style={addButtonStyle}>
-				+ New
+		<div ref={containerRef} style={{ position: "relative" }}>
+			<button type="button" onClick={handleOpen} style={triggerStyle}>
+				<span style={{ overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: value ? "var(--neutral-900)" : "var(--neutral-500)" }}>
+					{value || placeholder}
+				</span>
+				<span style={{ display: "inline-flex", transform: "rotate(90deg)", flexShrink: 0 }}>
+					<ChevronRightIcon size={13} color="var(--neutral-500)" />
+				</span>
 			</button>
+
+			{open && (
+				<div style={dropdownStyle}>
+					<div style={{ position: "relative", padding: 8 }}>
+						<span style={{ position: "absolute", left: 18, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-500)" }}>
+							<SearchIcon size={13} />
+						</span>
+						<input
+							ref={inputRef}
+							value={value}
+							onChange={(e) => onChange(e.target.value)}
+							onKeyDown={(e) => {
+								if (e.key === "Enter" || e.key === "Escape") setOpen(false);
+							}}
+							placeholder="Type to search or add a category..."
+							style={searchInputStyle}
+						/>
+					</div>
+					<div style={{ maxHeight: 220, overflowY: "auto" }}>
+						{value !== "" && (
+							<button type="button" onClick={() => onChange("")} style={optionStyle(false)}>
+								<span style={{ color: "var(--neutral-500)" }}>No category</span>
+							</button>
+						)}
+						{matches.map((c) => (
+							<button key={c} type="button" onClick={() => setOpen(false)} style={optionStyle(c.toLowerCase() === q)}>
+								{c}
+							</button>
+						))}
+						{isNewCategory && (
+							<button type="button" onClick={() => setOpen(false)} style={optionStyle(false)}>
+								<span style={{ color: "var(--brand)", fontWeight: 600 }}>+ Add "{value.trim()}" as a new category</span>
+							</button>
+						)}
+						{matches.length === 0 && !isNewCategory && <div style={{ padding: "12px 14px", fontSize: 13, color: "var(--neutral-500)" }}>No categories yet - type to create one.</div>}
+					</div>
+				</div>
+			)}
 		</div>
 	);
 }
 
-const inputStyle: React.CSSProperties = {
-	flex: 1,
-	minWidth: 0,
+function optionStyle(active: boolean): React.CSSProperties {
+	return {
+		display: "block",
+		width: "100%",
+		textAlign: "left",
+		padding: "8px 14px",
+		border: "none",
+		background: active ? "var(--brand-pale)" : "transparent",
+		cursor: "pointer",
+		fontSize: 13,
+		fontFamily: "inherit",
+		color: "var(--neutral-900)",
+	};
+}
+
+const triggerStyle: React.CSSProperties = {
+	width: "100%",
+	display: "flex",
+	alignItems: "center",
+	justifyContent: "space-between",
+	gap: 8,
 	padding: "8px 10px",
 	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
+	background: "#fff",
 	fontSize: 14,
+	fontFamily: "inherit",
+	cursor: "pointer",
 	boxSizing: "border-box",
 };
-const addButtonStyle: React.CSSProperties = {
-	padding: "0 12px",
-	borderRadius: 8,
-	border: "1px solid var(--neutral-200)",
+const dropdownStyle: React.CSSProperties = {
+	position: "absolute",
+	top: "calc(100% + 4px)",
+	left: 0,
+	right: 0,
 	background: "#fff",
-	fontSize: 13,
-	fontWeight: 600,
-	color: "var(--brand)",
-	cursor: "pointer",
-	whiteSpace: "nowrap",
+	border: "1px solid var(--neutral-200)",
+	borderRadius: 10,
+	boxShadow: "0 8px 24px rgba(0,0,0,0.12)",
+	zIndex: 200,
+	overflow: "hidden",
 };
-const cancelButtonStyle: React.CSSProperties = {
-	padding: "0 12px",
-	borderRadius: 8,
+const searchInputStyle: React.CSSProperties = {
+	width: "100%",
+	padding: "7px 10px 7px 30px",
+	borderRadius: 6,
 	border: "1px solid var(--neutral-200)",
-	background: "#fff",
 	fontSize: 13,
-	fontWeight: 600,
-	color: "var(--neutral-500)",
-	cursor: "pointer",
-	whiteSpace: "nowrap",
+	boxSizing: "border-box",
 };
