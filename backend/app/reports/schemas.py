@@ -15,3 +15,16 @@ class RevenueEntryOut(BaseModel):
 	amount: float
 	voided: bool
 	label: str | None = None
+
+
+class ExpenseEntryOut(BaseModel):
+	"""One row of money going out, from whichever source produced it - see
+	expense_service.py for what "type" can be and how each is dated."""
+
+	type: str
+	id: int
+	reference: str
+	occurred_at: datetime
+	method: str
+	amount: float
+	label: str | None = None

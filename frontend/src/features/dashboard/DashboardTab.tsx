@@ -163,6 +163,7 @@ export default function DashboardTab() {
 							value={`$${summary.net_profit.toFixed(2)}`}
 							tone={summary.net_profit >= 0 ? "brand" : "danger"}
 							changePct={prevSummary ? percentChange(summary.net_profit, prevSummary.net_profit) : null}
+							to="/financial-summary"
 						/>
 						<KpiCard
 							icon={TrendUpIcon}

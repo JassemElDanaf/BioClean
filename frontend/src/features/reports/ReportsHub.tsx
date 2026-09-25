@@ -2,7 +2,7 @@ import { useState } from "react";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { REPORTS } from "./registry";
 
-const GROUPS = ["Reports", "Finance"] as const;
+const GROUPS = ["Reports"] as const;
 
 export default function ReportsHub() {
 	const [activeKey, setActiveKey] = useState(REPORTS[0]?.key);

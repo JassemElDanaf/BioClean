@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import DateRangeFilter, { isoDate, todayIso, type DateRangePreset, type DateRangeValue } from "../../components/DateRangeFilter";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { getDashboardSummary, type DashboardSummary } from "../dashboard/api";
 
 const PRESETS: DateRangePreset[] = [
@@ -58,7 +59,11 @@ export default function FinancialSummaryReport() {
 
 	return (
 		<div>
-			<div style={{ marginBottom: 20 }}>
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 20, flexWrap: "wrap", gap: 12 }}>
+				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+					<SidebarToggleButton />
+					<h2 style={{ margin: 0 }}>Financial Summary</h2>
+				</div>
 				<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
 			</div>
 
