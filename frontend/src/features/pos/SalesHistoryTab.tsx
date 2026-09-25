@@ -155,6 +155,19 @@ export default function SalesHistoryTab() {
 	if (loading && entries.length === 0) return <div>Loading sales history...</div>;
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load sales history: {error}</div>;
 
+	function formatEntryDate(entry: RevenueEntry): string {
+		// Income.date is a plain calendar date the person picked (see
+		// income/models.py) - no real time-of-day, stored as midnight UTC.
+		// Showing it with a time (like pos_sale/invoice's real created_at/
+		// paid_at instants below) would convert that midnight into whatever
+		// the browser's local offset is - e.g. "3:00:00 AM" in Beirut (UTC+3)
+		// - which looks like a live transaction time but isn't one. Every
+		// other income view in the app (IncomeTab) already avoids this by
+		// using toLocaleDateString() instead.
+		if (entry.type === "income") return new Date(entry.occurred_at).toLocaleDateString();
+		return new Date(entry.occurred_at).toLocaleString();
+	}
+
 	function sourceLabel(entry: RevenueEntry): string {
 		if (entry.type === "pos_sale") return `POS - ${entry.method}`;
 		if (entry.type === "invoice") return "Invoice";
@@ -230,7 +243,7 @@ export default function SalesHistoryTab() {
 									{entry.reference}
 									{entry.label && <div style={{ fontSize: 12, color: "var(--neutral-500)" }}>{entry.label}</div>}
 								</td>
-								<td style={tdStyle}>{new Date(entry.occurred_at).toLocaleString()}</td>
+								<td style={tdStyle}>{formatEntryDate(entry)}</td>
 								<td style={{ ...tdStyle, textTransform: "capitalize" }}>{sourceLabel(entry)}</td>
 								<td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>${entry.amount.toFixed(2)}</td>
 								<td style={tdStyle}>{entryStatusPill(entry)}</td>
