@@ -372,9 +372,8 @@ export default function POSTab() {
 					)}
 
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0 4px", borderTop: "1px solid var(--neutral-200)", marginTop: 6 }}>
-						<span style={{ fontSize: 15, fontWeight: 700 }}>Total</span>
 						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
-							<span style={{ fontSize: 18, fontWeight: 800 }}>{money(total)}</span>
+							<span style={{ fontSize: 15, fontWeight: 700 }}>Total</span>
 							{exchangeRate && (
 								<div style={{ display: "flex", border: "1px solid var(--neutral-200)", borderRadius: 6, overflow: "hidden" }}>
 									<button type="button" onClick={() => setDisplayCurrency("USD")} style={currencyToggleStyle(displayCurrency === "USD")}>
@@ -386,8 +385,8 @@ export default function POSTab() {
 								</div>
 							)}
 						</div>
+						<span style={{ fontSize: 18, fontWeight: 800 }}>{money(total)}</span>
 					</div>
-					{displayCurrency === "LBP" && <div style={{ fontSize: 12, color: "var(--neutral-500)", textAlign: "right", marginBottom: 4 }}>Customer paying in LBP - a note will show on the receipt</div>}
 
 					<div style={{ display: "flex", gap: 8, margin: "10px 0 10px" }}>
 						{PAYMENT_METHODS.map((m) => (
