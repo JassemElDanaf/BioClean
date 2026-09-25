@@ -136,7 +136,6 @@ export default function PurchasesTab() {
 	}
 
 	async function handleReceive(po: PurchaseOrder) {
-		if (!confirm(`Receive PO #${po.id}? This adds all line items to stock and updates their cost price.`)) return;
 		setActionError(null);
 		try {
 			await receivePurchaseOrder(po.id);
@@ -148,7 +147,6 @@ export default function PurchasesTab() {
 	}
 
 	async function handleMarkPaid(po: PurchaseOrder) {
-		if (!confirm(`Mark PO #${po.id} as paid to ${po.supplier_name ?? "this supplier"}?`)) return;
 		setActionError(null);
 		try {
 			const updated = await markPurchaseOrderPaid(po.id);
@@ -160,7 +158,6 @@ export default function PurchasesTab() {
 	}
 
 	async function handleCancel(po: PurchaseOrder) {
-		if (!confirm(`Cancel PO #${po.id}?`)) return;
 		try {
 			await cancelPurchaseOrder(po.id);
 			setViewing(null);

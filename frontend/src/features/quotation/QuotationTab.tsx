@@ -9,7 +9,9 @@ import ProductGrid from "../../components/ProductGrid";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
 import { viewPdf } from "../../lib/pdf";
-import type { Customer } from "../customers/types";
+import { createCustomer } from "../customers/api";
+import CustomerFormModal from "../customers/CustomerFormModal";
+import type { Customer, CustomerFormValues } from "../customers/types";
 import { listItems } from "../inventory/api";
 import type { Item } from "../inventory/types";
 import { convertQuotation, createQuotation, deleteQuotation, listQuotations, quotationPdfUrl, type Quotation } from "./api";
@@ -56,6 +58,7 @@ export default function QuotationTab() {
 	const [error, setError] = useState<string | null>(null);
 
 	const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+	const [addingCustomer, setAddingCustomer] = useState(false);
 	const [validUntil, setValidUntil] = useState("");
 	const [notes, setNotes] = useState("");
 	const [lines, setLines] = useState<DraftLine[]>([]);
@@ -134,6 +137,11 @@ export default function QuotationTab() {
 		}
 	}
 
+	async function handleAddCustomer(values: CustomerFormValues) {
+		const created = await createCustomer(values);
+		setSelectedCustomer(created);
+	}
+
 	async function handleConvert(quotation: Quotation) {
 		setActionError(null);
 		try {
@@ -146,7 +154,6 @@ export default function QuotationTab() {
 	}
 
 	async function handleDelete(quotation: Quotation) {
-		if (!confirm(`Delete quote #${quotation.id}?`)) return;
 		try {
 			await deleteQuotation(quotation.id);
 			setViewing(null);
@@ -198,7 +205,14 @@ export default function QuotationTab() {
 								<>
 									<label style={fieldLabelStyle}>
 										Customer
-										<CustomerPicker value={selectedCustomer} onChange={setSelectedCustomer} noneLabel="No customer yet" />
+										<div style={{ display: "flex", gap: 6 }}>
+											<div style={{ flex: 1, minWidth: 0 }}>
+												<CustomerPicker value={selectedCustomer} onChange={setSelectedCustomer} noneLabel="No customer yet" />
+											</div>
+											<button type="button" onClick={() => setAddingCustomer(true)} style={addCustomerButtonStyle}>
+												+ New
+											</button>
+										</div>
 									</label>
 									<label style={fieldLabelStyle}>
 										Valid Until (optional)
@@ -328,6 +342,8 @@ export default function QuotationTab() {
 					</div>
 				)}
 			</Modal>
+
+			<CustomerFormModal open={addingCustomer} onClose={() => setAddingCustomer(false)} onSubmit={handleAddCustomer} editing={null} />
 		</div>
 	);
 }
@@ -349,6 +365,17 @@ const inputStyle: React.CSSProperties = {
 // workspace (product grid + cart) is open; the plain table view below
 // flows normally and lets <main> scroll as usual.
 const workspaceStyle: React.CSSProperties = { height: "100%", display: "flex", flexDirection: "column" };
+const addCustomerButtonStyle: React.CSSProperties = {
+	padding: "0 12px",
+	borderRadius: 8,
+	border: "1px solid var(--neutral-200)",
+	background: "#fff",
+	fontSize: 13,
+	fontWeight: 600,
+	color: "var(--brand)",
+	cursor: "pointer",
+	whiteSpace: "nowrap",
+};
 const thStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 13, color: "var(--neutral-500)" };
 const tdStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 14 };
 const primaryButtonStyle: React.CSSProperties = {

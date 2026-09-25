@@ -35,7 +35,6 @@ export default function CustomersTab() {
 	}
 
 	async function handleDelete(customer: Customer) {
-		if (!confirm(`Delete "${customer.name}"?`)) return;
 		try {
 			await deleteCustomer(customer.id);
 			reload();

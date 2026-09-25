@@ -56,7 +56,6 @@ export default function ExpensesTab() {
 	}
 
 	async function handleDelete(expense: Expense) {
-		if (!confirm(`Delete this expense (${expense.category}, $${expense.amount.toFixed(2)})?`)) return;
 		try {
 			await deleteExpense(expense.id);
 			reload();

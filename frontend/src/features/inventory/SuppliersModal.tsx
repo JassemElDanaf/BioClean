@@ -68,7 +68,6 @@ export default function SuppliersModal({
 	}
 
 	async function handleDelete(supplier: Supplier) {
-		if (!confirm(`Delete supplier "${supplier.name}"?`)) return;
 		try {
 			await deleteSupplier(supplier.id);
 			if (editing?.id === supplier.id) startNew();

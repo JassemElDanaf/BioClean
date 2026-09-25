@@ -140,7 +140,6 @@ export default function SalesHistoryTab() {
 	}
 
 	async function handleVoid(sale: Sale) {
-		if (!confirm(`Void sale #${sale.id}? This restores all ${sale.lines.length} line item(s) to stock.`)) return;
 		setVoidError(null);
 		try {
 			const updated = await voidSale(sale.id);

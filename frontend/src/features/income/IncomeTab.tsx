@@ -56,7 +56,6 @@ export default function IncomeTab() {
 	}
 
 	async function handleDelete(entry: Income) {
-		if (!confirm(`Delete this income entry (${entry.source}, $${entry.amount.toFixed(2)})?`)) return;
 		try {
 			await deleteIncome(entry.id);
 			reload();

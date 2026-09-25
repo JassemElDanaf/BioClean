@@ -199,7 +199,6 @@ export default function InvoicingTab() {
 		// paid (see backend invoicing/service.py) - an unpaid one never
 		// touched inventory, so voiding it has nothing to restore.
 		const stockNote = invoice.status === "paid" ? " This restores stock for all line items." : "";
-		if (!confirm(`Void invoice #${invoice.id}?${stockNote}`)) return;
 		setActionError(null);
 		try {
 			const updated = await voidInvoice(invoice.id);

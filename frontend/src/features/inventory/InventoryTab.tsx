@@ -95,7 +95,6 @@ export default function InventoryTab() {
 	}
 
 	async function handleDelete(item: Item) {
-		if (!confirm(`Delete "${item.item_name}"? This can't be undone.`)) return;
 		try {
 			await deleteItem(item.id);
 			await reload();
