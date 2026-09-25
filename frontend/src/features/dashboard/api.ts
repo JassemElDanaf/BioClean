@@ -1,4 +1,4 @@
-import { apiRequest } from "../../lib/api";
+import { API_BASE, apiRequest } from "../../lib/api";
 
 export interface DashboardFilters {
 	from_date?: string;
@@ -67,4 +67,14 @@ export function getDashboardSummary(filters: DashboardFilters = {}): Promise<Das
 export function getDashboardInsights(filters: DashboardFilters = {}): Promise<DashboardInsights> {
 	const qs = filtersQueryString(filters);
 	return apiRequest<DashboardInsights>(`/dashboard/insights${qs ? `?${qs}` : ""}`);
+}
+
+export function dashboardSummaryCsvUrl(filters: DashboardFilters = {}): string {
+	const qs = filtersQueryString(filters);
+	return `${API_BASE}/dashboard/summary/export/csv${qs ? `?${qs}` : ""}`;
+}
+
+export function dashboardSummaryPdfUrl(filters: DashboardFilters = {}): string {
+	const qs = filtersQueryString(filters);
+	return `${API_BASE}/dashboard/summary/export/pdf${qs ? `?${qs}` : ""}`;
 }

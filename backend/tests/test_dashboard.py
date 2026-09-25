@@ -232,3 +232,39 @@ def test_insights_top_products_survives_deleted_item(client):
 	insights = client.get(f"{DASHBOARD_URL}/insights").json()
 	names = [row["item_name"] for row in insights["top_products"]]
 	assert "Deleted Widget" in names
+
+
+def test_summary_csv_export_reflects_the_same_figures(client):
+	item = make_item(client)
+	client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 2}]})  # $10
+
+	res = client.get(f"{DASHBOARD_URL}/summary/export/csv")
+	assert res.status_code == 200
+	assert res.headers["content-type"].startswith("text/csv")
+	body = res.text
+	assert "POS Sales Revenue (net of returns)" in body
+	assert "Net Profit" in body
+
+
+def test_summary_pdf_export_is_generated(client):
+	item = make_item(client)
+	client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 2}]})
+
+	res = client.get(f"{DASHBOARD_URL}/summary/export/pdf")
+	assert res.status_code == 200
+	assert res.headers["content-type"] == "application/pdf"
+	assert res.content[:4] == b"%PDF"
+
+
+def test_summary_export_respects_date_range(client):
+	import csv
+	import io
+
+	item = make_item(client, initial_stock_qty=5)
+	client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 1}]})
+
+	from_far_future = "2099-01-01"
+	res = client.get(f"{DASHBOARD_URL}/summary/export/csv?from_date={from_far_future}")
+	rows = {row["Line Item"]: row["Amount"] for row in csv.DictReader(io.StringIO(res.text.lstrip("\ufeff")))}
+	assert rows["Total Income"] == "0.0"
+	assert rows["Net Profit"] == "0.0"

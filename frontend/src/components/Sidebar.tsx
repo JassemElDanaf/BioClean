@@ -1,6 +1,6 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { ChevronRightIcon } from "./icons";
+import { ChevronDownIcon } from "./icons";
 import { useSidebar } from "./SidebarContext";
 
 export interface NavTab {
@@ -42,20 +42,21 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 	const asideRef = useRef<HTMLElement>(null);
 	const location = useLocation();
 
-	// Groups start expanded - there's room for it, and it saves a click to
-	// reveal tabs (Quotations/Invoicing/Sales History) that are used
-	// constantly - tracked per group label so each still remembers its own
-	// collapsed/expanded state if toggled shut.
-	const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
-		const initial: Record<string, boolean> = {};
+	// Standard single-open accordion: groups start collapsed, except
+	// whichever one contains the page you're already on (so landing on
+	// /invoicing, say, doesn't hide the very group that shows where you
+	// are). Opening a group closes whichever other one was open - only
+	// ever one expanded at a time - and opening the already-expanded one
+	// collapses it. At most one label is ever stored, not a per-group map.
+	const [expandedGroup, setExpandedGroup] = useState<string | null>(() => {
 		for (const item of tabs) {
-			if (isGroup(item)) initial[item.label] = true;
+			if (isGroup(item) && item.children.some((child) => location.pathname === `/${child.path}`)) return item.label;
 		}
-		return initial;
+		return null;
 	});
 
 	function toggleGroup(label: string) {
-		setExpandedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+		setExpandedGroup((prev) => (prev === label ? null : label));
 	}
 
 	useEffect(() => {
@@ -144,7 +145,7 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 			<nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "4px 12px" }}>
 				{tabs.map((item) => {
 					if (isGroup(item)) {
-						const expanded = !!expandedGroups[item.label];
+						const expanded = expandedGroup === item.label;
 						const groupActive = item.children.some((child) => location.pathname === `/${child.path}`);
 						return (
 							<div key={item.label}>
@@ -170,8 +171,8 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 								>
 									<item.icon size={18} color={groupActive ? "var(--brand)" : "var(--neutral-500)"} />
 									<span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
-									<span style={{ display: "flex", transform: expanded ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>
-										<ChevronRightIcon size={14} color="var(--neutral-500)" />
+									<span style={{ display: "flex", transform: expanded ? "rotate(180deg)" : "none", transition: "transform 120ms" }}>
+										<ChevronDownIcon size={14} color="var(--neutral-500)" />
 									</span>
 								</button>
 								{expanded && (
