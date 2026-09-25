@@ -226,7 +226,14 @@ def update_item(item_id: int, payload: schemas.ItemUpdate, db: Session = Depends
 		if existing and existing.id != item_id:
 			raise HTTPException(status_code=409, detail=f"Barcode '{payload.barcode}' is already used by another item")
 
-	for field, value in payload.model_dump().items():
+	# image_url is deliberately excluded - it's managed exclusively by
+	# upload_item_image() below, never by this general edit form. The
+	# frontend's ItemFormValues never carries a photo (see
+	# ItemFormModal.tsx: uploads go straight to that endpoint, independent
+	# of the rest of the form), so every PUT here always sent image_url as
+	# Pydantic's bare default of None, silently wiping out whatever photo
+	# was already set the moment anything else on the item was edited.
+	for field, value in payload.model_dump(exclude={"image_url"}).items():
 		setattr(item, field, value)
 	db.commit()
 	db.refresh(item)

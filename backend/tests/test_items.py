@@ -174,3 +174,33 @@ def test_upload_item_image_rejects_wrong_type(client):
 		files={"file": ("test.txt", io.BytesIO(b"not an image"), "text/plain")},
 	)
 	assert res.status_code == 400
+
+
+def test_editing_item_does_not_wipe_out_its_photo(client, monkeypatch, tmp_path):
+	# Same fixture-redirect as test_upload_item_image_accepts_png above -
+	# don't write into the real backend/uploads/items directory.
+	import app.items.router as items_router
+
+	monkeypatch.setattr(items_router, "UPLOAD_DIR", str(tmp_path))
+
+	item = make_item(client)
+	png_bytes = bytes.fromhex(
+		"89504e470d0a1a0a0000000d49484452000000010000000108020000009077"
+		"53de0000000a49444154789c6360000002000100ffff03000006000557bfab"
+		"d40000000049454e44ae426082"
+	)
+	uploaded = client.post(
+		f"{ITEMS_URL}/{item['id']}/image",
+		files={"file": ("test.png", io.BytesIO(png_bytes), "image/png")},
+	).json()
+	assert uploaded["image_url"]
+
+	# The edit form (frontend/src/features/inventory/ItemFormModal.tsx)
+	# never sends image_url at all - editing an unrelated field like the
+	# name must not touch the photo already on file.
+	edit_payload = {k: v for k, v in item.items() if k in {"item_name", "category", "uom", "barcode", "cost_price", "retail_price", "wholesale_price", "reorder_level"}}
+	edit_payload["item_name"] = "Renamed Widget"
+	updated = client.put(f"{ITEMS_URL}/{item['id']}", json=edit_payload).json()
+
+	assert updated["item_name"] == "Renamed Widget"
+	assert updated["image_url"] == uploaded["image_url"]
