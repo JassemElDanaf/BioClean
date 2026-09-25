@@ -31,6 +31,17 @@ export default function ExpensesTab() {
 	const [filters, setFilters] = useState<DateFilters>(() => PRESETS[0].range());
 	const [formOpen, setFormOpen] = useState(false);
 	const [editing, setEditing] = useState<Expense | null>(null);
+	// Every distinct category ever used, independent of `filters` above
+	// (which defaults to "Today" and would otherwise make the category
+	// picker look nearly empty) - fetched once, all-time, purely to
+	// populate the Add/Edit form's suggestions.
+	const [allCategories, setAllCategories] = useState<string[]>([]);
+
+	useEffect(() => {
+		listExpenses({}).then(({ expenses }) => {
+			setAllCategories(Array.from(new Set(expenses.map((e) => e.category))).sort());
+		});
+	}, []);
 
 	function reload() {
 		setLoading(true);
@@ -52,6 +63,7 @@ export default function ExpensesTab() {
 		} else {
 			await createExpense(values);
 		}
+		setAllCategories((prev) => (prev.includes(values.category) ? prev : [...prev, values.category].sort()));
 		reload();
 	}
 
@@ -142,7 +154,7 @@ export default function ExpensesTab() {
 				Total: <strong style={{ color: "var(--neutral-900)" }}>${runningTotal.toFixed(2)}</strong>
 			</div>
 
-			<ExpenseFormModal key={`${editing?.id ?? "new"}-${formOpen}`} open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} editing={editing} />
+			<ExpenseFormModal key={`${editing?.id ?? "new"}-${formOpen}`} open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} editing={editing} categories={allCategories} />
 		</div>
 	);
 }
@@ -152,11 +164,17 @@ function ExpenseFormModal({
 	onClose,
 	onSubmit,
 	editing,
+	categories,
 }: {
 	open: boolean;
 	onClose: () => void;
 	onSubmit: (values: ExpenseFormValues) => Promise<void>;
 	editing: Expense | null;
+	// Every distinct category ever used (all-time, not just the currently
+	// filtered range) - suggests picking one instead of retyping a near-
+	// duplicate, while staying free text so a genuinely new category is
+	// never blocked.
+	categories: string[];
 }) {
 	const [values, setValues] = useState<ExpenseFormValues>(
 		editing
@@ -188,7 +206,20 @@ function ExpenseFormModal({
 		<Modal open={open} onClose={onClose} title={editing ? "Edit Expense" : "Add Expense"}>
 			<form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
 				<Field label="Category">
-					<input value={values.category} onChange={(e) => field("category", e.target.value)} required autoFocus style={inputStyle} placeholder="Rent, Utilities, Salaries..." />
+					<input
+						value={values.category}
+						onChange={(e) => field("category", e.target.value)}
+						required
+						autoFocus
+						list="expense-category-options"
+						style={inputStyle}
+						placeholder="Rent, Utilities, Salaries..."
+					/>
+					<datalist id="expense-category-options">
+						{categories.map((c) => (
+							<option key={c} value={c} />
+						))}
+					</datalist>
 				</Field>
 				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 					<Field label="Amount">

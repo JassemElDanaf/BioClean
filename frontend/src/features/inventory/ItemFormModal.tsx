@@ -23,6 +23,7 @@ export default function ItemFormModal({
 	onSubmit,
 	onImageChanged,
 	editing,
+	categories,
 }: {
 	open: boolean;
 	onClose: () => void;
@@ -34,6 +35,12 @@ export default function ItemFormModal({
 	// reloads its list off this rather than off onSubmit.
 	onImageChanged: () => void;
 	editing: Item | null;
+	// Every distinct category already in use, from the parent's own (full,
+	// unfiltered) item list - lets the Category field suggest picking one
+	// of these instead of free-typing a near-duplicate ("Cleaning" vs
+	// "cleaning" vs "Clean Supplies"), while still allowing a genuinely
+	// new category by just typing it.
+	categories: string[];
 }) {
 	// The parent passes a `key` that changes per edited item, which forces
 	// React to fully remount this component whenever a different item (or
@@ -135,7 +142,17 @@ export default function ItemFormModal({
 				</Field>
 				<div style={gridStyle(2)}>
 					<Field label="Category">
-						<input value={values.category} onChange={(e) => field("category", e.target.value)} style={inputStyle} />
+						{/* A <datalist> rather than a closed dropdown (like the UOM
+						    Select next to it) - existing categories show up as
+						    suggestions while typing, but the field stays free text
+						    so the first item of a brand-new category isn't blocked
+						    on that category already existing somewhere. */}
+						<input value={values.category} onChange={(e) => field("category", e.target.value)} list="item-category-options" style={inputStyle} />
+						<datalist id="item-category-options">
+							{categories.map((c) => (
+								<option key={c} value={c} />
+							))}
+						</datalist>
 					</Field>
 					<Field label="Unit of Measure">
 						<Select

@@ -311,6 +311,7 @@ export default function InventoryTab() {
 				onSubmit={handleSubmit}
 				onImageChanged={reload}
 				editing={editing}
+				categories={categories.filter((c) => c !== "All")}
 			/>
 			<StockAdjustModal item={adjusting} onClose={() => setAdjusting(null)} onAdjusted={reload} />
 			<StockHistoryModal item={viewingHistory} onClose={() => setViewingHistory(null)} />
