@@ -93,6 +93,19 @@ export default function QuotationTab() {
 		return selectedCustomer?.is_wholesale ? item.wholesale_price : item.retail_price;
 	}
 
+	// unitPrice is never hand-edited (DocumentCartPanel only ever displays
+	// it, see its own file) - it's purely a snapshot of priceFor() taken
+	// the moment a line was added. Without this, picking a wholesale
+	// customer *after* already adding lines left every one of them stuck
+	// at whatever tier was active when it was added - only lines added
+	// afterward got the new price, silently quoting part of the cart at
+	// the wrong tier. Re-snapshotting all of them here on every customer
+	// change keeps the whole cart in sync with whoever is now selected.
+	useEffect(() => {
+		setLines((prev) => prev.map((l) => ({ ...l, unitPrice: priceFor(l.item) })));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [selectedCustomer?.is_wholesale]);
+
 	function addLine(item: Item) {
 		setLines((prev) => {
 			const existing = prev.find((l) => l.item.id === item.id);

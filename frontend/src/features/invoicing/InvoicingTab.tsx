@@ -42,15 +42,6 @@ const PRESETS: DateRangePreset[] = [
 	{ key: "all", label: "All Time", range: () => ({}) },
 ];
 
-// Local YYYY-MM-DD (not toISOString, which shifts to UTC and can land on
-// the wrong day depending on timezone/time-of-day) - matches what
-// <input type="date"> both expects and displays.
-function todayDateInput(): string {
-	const d = new Date();
-	const pad = (n: number) => String(n).padStart(2, "0");
-	return `${d.getFullYear()}-${pad(d.getMonth() + 1)}-${pad(d.getDate())}`;
-}
-
 function statusPill(status: Invoice["status"]): React.CSSProperties {
 	const map: Record<Invoice["status"], [string, string]> = {
 		unpaid: ["#fff3e0", "#b45f06"],
@@ -81,7 +72,7 @@ export default function InvoicingTab() {
 	const [error, setError] = useState<string | null>(null);
 
 	const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
-	const [dueDate, setDueDate] = useState(todayDateInput());
+	const [dueDate, setDueDate] = useState("");
 	const [notes, setNotes] = useState("");
 	const [lines, setLines] = useState<DraftLine[]>([]);
 	const [saving, setSaving] = useState(false);
@@ -130,6 +121,19 @@ export default function InvoicingTab() {
 		return selectedCustomer?.is_wholesale ? item.wholesale_price : item.retail_price;
 	}
 
+	// unitPrice is never hand-edited (DocumentCartPanel only ever displays
+	// it, see its own file) - it's purely a snapshot of priceFor() taken
+	// the moment a line was added. Without this, picking a wholesale
+	// customer *after* already adding lines left every one of them stuck
+	// at whatever tier was active when it was added - only lines added
+	// afterward got the new price, silently invoicing part of the cart at
+	// the wrong tier. Re-snapshotting all of them here on every customer
+	// change keeps the whole cart in sync with whoever is now selected.
+	useEffect(() => {
+		setLines((prev) => prev.map((l) => ({ ...l, unitPrice: priceFor(l.item) })));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [selectedCustomer?.is_wholesale]);
+
 	function addLine(item: Item) {
 		setLines((prev) => {
 			const existing = prev.find((l) => l.item.id === item.id);
@@ -165,7 +169,7 @@ export default function InvoicingTab() {
 			});
 			setLines([]);
 			setSelectedCustomer(null);
-			setDueDate(todayDateInput());
+			setDueDate("");
 			setNotes("");
 			setFormOpen(false);
 			reloadAll();
