@@ -1,4 +1,5 @@
 import { useState } from "react";
+import CategoryPicker from "../../components/CategoryPicker";
 import Modal from "../../components/Modal";
 import Select from "../../components/Select";
 import { ApiError } from "../../lib/api";
@@ -142,17 +143,7 @@ export default function ItemFormModal({
 				</Field>
 				<div style={gridStyle(2)}>
 					<Field label="Category">
-						{/* A <datalist> rather than a closed dropdown (like the UOM
-						    Select next to it) - existing categories show up as
-						    suggestions while typing, but the field stays free text
-						    so the first item of a brand-new category isn't blocked
-						    on that category already existing somewhere. */}
-						<input value={values.category} onChange={(e) => field("category", e.target.value)} list="item-category-options" style={inputStyle} />
-						<datalist id="item-category-options">
-							{categories.map((c) => (
-								<option key={c} value={c} />
-							))}
-						</datalist>
+						<CategoryPicker value={values.category} onChange={(v) => field("category", v)} categories={categories} placeholder="No category yet" />
 					</Field>
 					<Field label="Unit of Measure">
 						<Select

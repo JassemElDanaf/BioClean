@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
+import CategoryPicker from "../../components/CategoryPicker";
 import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
 import Modal from "../../components/Modal";
 import DatePicker from "../../components/DatePicker";
@@ -206,20 +207,7 @@ function ExpenseFormModal({
 		<Modal open={open} onClose={onClose} title={editing ? "Edit Expense" : "Add Expense"}>
 			<form onSubmit={handleSubmit} style={{ display: "grid", gap: 10 }}>
 				<Field label="Category">
-					<input
-						value={values.category}
-						onChange={(e) => field("category", e.target.value)}
-						required
-						autoFocus
-						list="expense-category-options"
-						style={inputStyle}
-						placeholder="Rent, Utilities, Salaries..."
-					/>
-					<datalist id="expense-category-options">
-						{categories.map((c) => (
-							<option key={c} value={c} />
-						))}
-					</datalist>
+					<CategoryPicker value={values.category} onChange={(v) => field("category", v)} categories={categories} placeholder="Rent, Utilities, Salaries..." />
 				</Field>
 				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
 					<Field label="Amount">
