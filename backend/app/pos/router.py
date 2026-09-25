@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.database import get_db
+from ..shared.concurrency import lock_row
 from ..shared.export import to_csv_response
 from . import models, schemas, service
 
@@ -133,18 +134,23 @@ def get_sale_receipt_pdf(sale_id: int, db: Session = Depends(get_db)):
 
 @router.post("/sales/{sale_id}/void", response_model=schemas.SaleOut)
 def void_sale(sale_id: int, db: Session = Depends(get_db)):
-	sale = db.query(models.Sale).options(joinedload(models.Sale.lines)).filter(models.Sale.id == sale_id).first()
-	if not sale:
+	if not lock_row(db, models.Sale, sale_id):
 		raise HTTPException(status_code=404, detail="Sale not found")
+	sale = db.query(models.Sale).options(joinedload(models.Sale.lines)).filter(models.Sale.id == sale_id).first()
 	sale = service.void_sale(db, sale)
 	return _to_out(sale)
 
 
 @router.post("/sales/{sale_id}/return", response_model=schemas.ReturnOut, status_code=201)
 def create_return(sale_id: int, payload: schemas.ReturnCreate, db: Session = Depends(get_db)):
-	sale = db.query(models.Sale).options(joinedload(models.Sale.lines)).filter(models.Sale.id == sale_id).first()
-	if not sale:
+	# Locked because create_return()'s "can't return more than remains"
+	# check (pos/service.py) reads existing ReturnLine rows against this
+	# sale before writing new ones - two overlapping return requests
+	# against the same sale could otherwise both read the same
+	# not-yet-returned quantity and both approve, over-returning stock.
+	if not lock_row(db, models.Sale, sale_id):
 		raise HTTPException(status_code=404, detail="Sale not found")
+	sale = db.query(models.Sale).options(joinedload(models.Sale.lines)).filter(models.Sale.id == sale_id).first()
 	ret = service.create_return(
 		db,
 		sale,

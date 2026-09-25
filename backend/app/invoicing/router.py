@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.database import get_db
+from ..shared.concurrency import lock_row
 from ..shared.export import to_csv_response
 from . import models, schemas, service
 
@@ -112,17 +113,17 @@ def get_invoice_pdf(invoice_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{invoice_id}/mark-paid", response_model=schemas.InvoiceOut)
 def mark_invoice_paid(invoice_id: int, db: Session = Depends(get_db)):
-	invoice = db.query(models.Invoice).options(joinedload(models.Invoice.lines), joinedload(models.Invoice.customer)).filter(models.Invoice.id == invoice_id).first()
-	if not invoice:
+	if not lock_row(db, models.Invoice, invoice_id):
 		raise HTTPException(status_code=404, detail="Invoice not found")
+	invoice = db.query(models.Invoice).options(joinedload(models.Invoice.lines), joinedload(models.Invoice.customer)).filter(models.Invoice.id == invoice_id).first()
 	invoice = service.mark_paid(db, invoice)
 	return _to_out(invoice)
 
 
 @router.post("/{invoice_id}/void", response_model=schemas.InvoiceOut)
 def void_invoice(invoice_id: int, db: Session = Depends(get_db)):
-	invoice = db.query(models.Invoice).options(joinedload(models.Invoice.lines), joinedload(models.Invoice.customer)).filter(models.Invoice.id == invoice_id).first()
-	if not invoice:
+	if not lock_row(db, models.Invoice, invoice_id):
 		raise HTTPException(status_code=404, detail="Invoice not found")
+	invoice = db.query(models.Invoice).options(joinedload(models.Invoice.lines), joinedload(models.Invoice.customer)).filter(models.Invoice.id == invoice_id).first()
 	invoice = service.void_invoice(db, invoice)
 	return _to_out(invoice)

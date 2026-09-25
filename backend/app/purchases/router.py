@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.database import get_db
+from ..shared.concurrency import lock_row
 from ..shared.export import to_csv_response
 from . import models, schemas, service
 
@@ -108,26 +109,26 @@ def get_purchase_order_pdf(po_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{po_id}/receive", response_model=schemas.PurchaseOrderOut)
 def receive_purchase_order(po_id: int, db: Session = Depends(get_db)):
-	po = db.query(models.PurchaseOrder).options(joinedload(models.PurchaseOrder.lines), joinedload(models.PurchaseOrder.supplier)).filter(models.PurchaseOrder.id == po_id).first()
-	if not po:
+	if not lock_row(db, models.PurchaseOrder, po_id):
 		raise HTTPException(status_code=404, detail="Purchase order not found")
+	po = db.query(models.PurchaseOrder).options(joinedload(models.PurchaseOrder.lines), joinedload(models.PurchaseOrder.supplier)).filter(models.PurchaseOrder.id == po_id).first()
 	po = service.receive_purchase_order(db, po)
 	return _to_out(po)
 
 
 @router.post("/{po_id}/mark-paid", response_model=schemas.PurchaseOrderOut)
 def mark_purchase_order_paid(po_id: int, db: Session = Depends(get_db)):
-	po = db.query(models.PurchaseOrder).options(joinedload(models.PurchaseOrder.lines), joinedload(models.PurchaseOrder.supplier)).filter(models.PurchaseOrder.id == po_id).first()
-	if not po:
+	if not lock_row(db, models.PurchaseOrder, po_id):
 		raise HTTPException(status_code=404, detail="Purchase order not found")
+	po = db.query(models.PurchaseOrder).options(joinedload(models.PurchaseOrder.lines), joinedload(models.PurchaseOrder.supplier)).filter(models.PurchaseOrder.id == po_id).first()
 	po = service.mark_paid(db, po)
 	return _to_out(po)
 
 
 @router.post("/{po_id}/cancel", response_model=schemas.PurchaseOrderOut)
 def cancel_purchase_order(po_id: int, db: Session = Depends(get_db)):
-	po = db.query(models.PurchaseOrder).options(joinedload(models.PurchaseOrder.lines), joinedload(models.PurchaseOrder.supplier)).filter(models.PurchaseOrder.id == po_id).first()
-	if not po:
+	if not lock_row(db, models.PurchaseOrder, po_id):
 		raise HTTPException(status_code=404, detail="Purchase order not found")
+	po = db.query(models.PurchaseOrder).options(joinedload(models.PurchaseOrder.lines), joinedload(models.PurchaseOrder.supplier)).filter(models.PurchaseOrder.id == po_id).first()
 	po = service.cancel_purchase_order(db, po)
 	return _to_out(po)

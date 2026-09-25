@@ -4,6 +4,7 @@ from fastapi import APIRouter, Depends, HTTPException, Query, Response
 from sqlalchemy.orm import Session, joinedload
 
 from ..core.database import get_db
+from ..shared.concurrency import lock_row
 from ..invoicing.router import _to_out as _invoice_to_out
 from ..invoicing.schemas import InvoiceOut
 from . import models, schemas, service
@@ -93,8 +94,8 @@ def delete_quotation(quotation_id: int, db: Session = Depends(get_db)):
 
 @router.post("/{quotation_id}/convert", response_model=InvoiceOut)
 def convert_quotation(quotation_id: int, db: Session = Depends(get_db)):
-	quotation = db.query(models.Quotation).options(joinedload(models.Quotation.lines), joinedload(models.Quotation.customer)).filter(models.Quotation.id == quotation_id).first()
-	if not quotation:
+	if not lock_row(db, models.Quotation, quotation_id):
 		raise HTTPException(status_code=404, detail="Quotation not found")
+	quotation = db.query(models.Quotation).options(joinedload(models.Quotation.lines), joinedload(models.Quotation.customer)).filter(models.Quotation.id == quotation_id).first()
 	invoice = service.convert_to_invoice(db, quotation)
 	return _invoice_to_out(invoice)
