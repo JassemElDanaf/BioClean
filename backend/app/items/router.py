@@ -186,6 +186,23 @@ def get_item_by_barcode(code: str, db: Session = Depends(get_db)):
 	return _to_out(item)
 
 
+@router.put("/categories/{old_category}")
+def rename_category(old_category: str, payload: schemas.CategoryRename, db: Session = Depends(get_db)):
+	"""Categories aren't a stored list of their own - just whatever value
+	currently sits in Item.category (see InventoryTab.tsx's own `categories`
+	memo, derived the same way) - so "rename", "merge into another
+	category", and "delete a category" are all the exact same operation:
+	reassign every item currently on `old_category` to whatever
+	new_category is. Blank new_category clears it (nullable=True on the
+	column); a non-blank one that already exists elsewhere merges the two,
+	since nothing here distinguishes "new name" from "existing name" -
+	it's just a value on a plain string column, not a foreign key."""
+	new_category = payload.new_category.strip() or None
+	updated = db.query(models.Item).filter(models.Item.category == old_category).update({"category": new_category})
+	db.commit()
+	return {"updated": updated}
+
+
 @router.get("/{item_id}", response_model=schemas.ItemOut)
 def get_item(item_id: int, db: Session = Depends(get_db)):
 	item = _query_with_relations(db).filter(models.Item.id == item_id).first()

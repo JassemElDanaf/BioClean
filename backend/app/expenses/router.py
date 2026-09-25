@@ -74,6 +74,18 @@ def create_expense(payload: schemas.ExpenseCreate, db: Session = Depends(get_db)
 	return expense
 
 
+@router.put("/categories/{old_category}")
+def rename_category(old_category: str, payload: schemas.CategoryRename, db: Session = Depends(get_db)):
+	"""See items/router.py's rename_category() for the full reasoning -
+	categories aren't a stored list, just whatever value is currently on
+	Expense.category, so renaming and merging are the same reassignment.
+	Unlike items, this can't clear a category to blank (Expense.category
+	is required - see CategoryRename's own docstring)."""
+	updated = db.query(models.Expense).filter(models.Expense.category == old_category).update({"category": payload.new_category.strip()})
+	db.commit()
+	return {"updated": updated}
+
+
 @router.put("/{expense_id}", response_model=schemas.ExpenseOut)
 def update_expense(expense_id: int, payload: schemas.ExpenseUpdate, db: Session = Depends(get_db)):
 	expense = db.get(models.Expense, expense_id)

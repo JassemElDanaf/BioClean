@@ -2,10 +2,11 @@ import { useEffect, useMemo, useState } from "react";
 import { useSearchParams } from "react-router-dom";
 import ActionsMenu from "../../components/ActionsMenu";
 import { SearchIcon } from "../../components/icons";
+import ManageCategoriesModal from "../../components/ManageCategoriesModal";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
 import { useExchangeRate, usdToLbp } from "../../lib/currency";
-import { createItem, deleteItem, exportItemsCsvUrl, listItems, listSuppliers, updateItem } from "./api";
+import { createItem, deleteItem, exportItemsCsvUrl, listItems, listSuppliers, renameItemCategory, updateItem } from "./api";
 import ItemFormModal from "./ItemFormModal";
 import StockAdjustModal from "./StockAdjustModal";
 import StockHistoryModal from "./StockHistoryModal";
@@ -28,6 +29,7 @@ export default function InventoryTab() {
 	const [viewingHistory, setViewingHistory] = useState<Item | null>(null);
 	const [suppliers, setSuppliers] = useState<Supplier[]>([]);
 	const [suppliersOpen, setSuppliersOpen] = useState(false);
+	const [managingCategories, setManagingCategories] = useState(false);
 	const [search, setSearch] = useState("");
 	// Deep-linkable (?stock=low|out) so a Dashboard alert card can jump
 	// straight into the right filtered view instead of the default list.
@@ -185,6 +187,9 @@ export default function InventoryTab() {
 					<button onClick={() => setSuppliersOpen(true)} style={secondaryButtonStyle}>
 						Suppliers
 					</button>
+					<button onClick={() => setManagingCategories(true)} style={secondaryButtonStyle}>
+						Categories
+					</button>
 					<a href={exportItemsCsvUrl} style={secondaryButtonStyle}>
 						Export CSV
 					</a>
@@ -316,6 +321,16 @@ export default function InventoryTab() {
 			<StockAdjustModal item={adjusting} onClose={() => setAdjusting(null)} onAdjusted={reload} />
 			<StockHistoryModal item={viewingHistory} onClose={() => setViewingHistory(null)} />
 			<SuppliersModal open={suppliersOpen} onClose={() => setSuppliersOpen(false)} suppliers={suppliers} onChanged={reloadSuppliers} />
+			<ManageCategoriesModal
+				open={managingCategories}
+				onClose={() => setManagingCategories(false)}
+				categories={categories.filter((c) => c !== "All")}
+				onRename={async (oldCategory, newCategory) => {
+					await renameItemCategory(oldCategory, newCategory);
+					await reload();
+				}}
+				allowClear
+			/>
 		</div>
 	);
 }

@@ -71,18 +71,52 @@ export default function CategoryPicker({
 						/>
 					</div>
 					<div style={{ maxHeight: 220, overflowY: "auto" }}>
+						{/* onMouseDown + preventDefault, not onClick - selecting an
+						    option while the search input still has focus can
+						    otherwise cost this its first click: the mousedown
+						    shifts focus off the input, which (in this exact
+						    "click a list item next to a still-focused text field"
+						    shape) can make the browser dispatch the click to a
+						    stale target instead of committing it here. Handling
+						    the pick on mousedown itself (as most comboboxes do)
+						    and blocking the default focus change sidesteps it
+						    entirely. */}
 						{value !== "" && (
-							<button type="button" onClick={() => onChange("")} style={optionStyle(false)}>
+							<button
+								type="button"
+								onMouseDown={(e) => {
+									e.preventDefault();
+									onChange("");
+									setOpen(false);
+								}}
+								style={optionStyle(false)}
+							>
 								<span style={{ color: "var(--neutral-500)" }}>No category</span>
 							</button>
 						)}
 						{matches.map((c) => (
-							<button key={c} type="button" onClick={() => setOpen(false)} style={optionStyle(c.toLowerCase() === q)}>
+							<button
+								key={c}
+								type="button"
+								onMouseDown={(e) => {
+									e.preventDefault();
+									onChange(c);
+									setOpen(false);
+								}}
+								style={optionStyle(c.toLowerCase() === q)}
+							>
 								{c}
 							</button>
 						))}
 						{isNewCategory && (
-							<button type="button" onClick={() => setOpen(false)} style={optionStyle(false)}>
+							<button
+								type="button"
+								onMouseDown={(e) => {
+									e.preventDefault();
+									setOpen(false);
+								}}
+								style={optionStyle(false)}
+							>
 								<span style={{ color: "var(--brand)", fontWeight: 600 }}>+ Add "{value.trim()}" as a new category</span>
 							</button>
 						)}

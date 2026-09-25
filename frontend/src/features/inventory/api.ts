@@ -84,3 +84,15 @@ export function getAuditReport(filters: AuditFilters): Promise<AuditReportRow[]>
 export function auditExportCsvUrl(filters: AuditFilters): string {
 	return `${API_BASE}/items/audit/export/csv?${auditQueryString(filters)}`;
 }
+
+// Categories aren't a stored list of their own - just whatever value is
+// currently on each item (see InventoryTab.tsx's own `categories` memo) -
+// so renaming, merging into an existing category, and clearing one off
+// every item that has it are all this one same reassignment. See
+// backend/app/items/router.py:rename_category()'s docstring.
+export function renameItemCategory(oldCategory: string, newCategory: string): Promise<{ updated: number }> {
+	return apiRequest<{ updated: number }>(`/items/categories/${encodeURIComponent(oldCategory)}`, {
+		method: "PUT",
+		body: JSON.stringify({ new_category: newCategory }),
+	});
+}

@@ -204,3 +204,42 @@ def test_editing_item_does_not_wipe_out_its_photo(client, monkeypatch, tmp_path)
 
 	assert updated["item_name"] == "Renamed Widget"
 	assert updated["image_url"] == uploaded["image_url"]
+
+
+def test_rename_category_updates_every_matching_item(client):
+	make_item(client, barcode="RC-1", category="Old Name")
+	make_item(client, barcode="RC-2", category="Old Name")
+	make_item(client, barcode="RC-3", category="Different Category")
+
+	res = client.put(f"{ITEMS_URL}/categories/Old Name", json={"new_category": "New Name"})
+	assert res.status_code == 200, res.text
+	assert res.json()["updated"] == 2
+
+	items = {i["barcode"]: i["category"] for i in client.get(ITEMS_URL).json()}
+	assert items["RC-1"] == "New Name"
+	assert items["RC-2"] == "New Name"
+	assert items["RC-3"] == "Different Category"
+
+
+def test_rename_category_merges_into_an_existing_one(client):
+	make_item(client, barcode="MC-1", category="A")
+	make_item(client, barcode="MC-2", category="B")
+
+	res = client.put(f"{ITEMS_URL}/categories/A", json={"new_category": "B"})
+	assert res.status_code == 200
+	assert res.json()["updated"] == 1
+
+	items = {i["barcode"]: i["category"] for i in client.get(ITEMS_URL).json()}
+	assert items["MC-1"] == "B"
+	assert items["MC-2"] == "B"
+
+
+def test_rename_category_with_blank_new_name_clears_it(client):
+	make_item(client, barcode="CL-1", category="Retiring")
+
+	res = client.put(f"{ITEMS_URL}/categories/Retiring", json={"new_category": ""})
+	assert res.status_code == 200
+	assert res.json()["updated"] == 1
+
+	item = next(i for i in client.get(ITEMS_URL).json() if i["barcode"] == "CL-1")
+	assert item["category"] is None

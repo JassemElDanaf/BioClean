@@ -15,6 +15,18 @@ class ItemBase(BaseModel):
 	reorder_level: float = Field(default=10, ge=0)
 
 
+class CategoryRename(BaseModel):
+	"""Renames a category across every item that currently has it - or, with
+	new_category left blank, clears it off every one of them (categories
+	aren't a stored list of their own, just whatever's actually assigned
+	on items right now - see items/router.py:rename_category()'s
+	docstring). Renaming to a name that already exists elsewhere merges
+	the two, since this is the exact same "set category = X where
+	category = Y" update either way."""
+
+	new_category: str = ""
+
+
 class ItemCreate(ItemBase):
 	# Initial stock qty at creation time, written into the default
 	# warehouse - the only place a caller ever sets stock directly. Every

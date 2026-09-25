@@ -2,11 +2,12 @@ import { useEffect, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
 import CategoryPicker from "../../components/CategoryPicker";
 import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
+import ManageCategoriesModal from "../../components/ManageCategoriesModal";
 import Modal from "../../components/Modal";
 import DatePicker from "../../components/DatePicker";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
-import { createExpense, deleteExpense, expensesExportCsvUrl, listExpenses, updateExpense, type DateFilters, type Expense, type ExpenseFormValues } from "./api";
+import { createExpense, deleteExpense, expensesExportCsvUrl, listExpenses, renameExpenseCategory, updateExpense, type DateFilters, type Expense, type ExpenseFormValues } from "./api";
 
 const EMPTY: ExpenseFormValues = { category: "", amount: 0, description: "", date: "", reference: "" };
 
@@ -37,11 +38,16 @@ export default function ExpensesTab() {
 	// picker look nearly empty) - fetched once, all-time, purely to
 	// populate the Add/Edit form's suggestions.
 	const [allCategories, setAllCategories] = useState<string[]>([]);
+	const [managingCategories, setManagingCategories] = useState(false);
 
-	useEffect(() => {
-		listExpenses({}).then(({ expenses }) => {
+	function reloadCategories() {
+		return listExpenses({}).then(({ expenses }) => {
 			setAllCategories(Array.from(new Set(expenses.map((e) => e.category))).sort());
 		});
+	}
+
+	useEffect(() => {
+		reloadCategories();
 	}, []);
 
 	function reload() {
@@ -91,6 +97,9 @@ export default function ExpensesTab() {
 				</div>
 				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
 					<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
+					<button onClick={() => setManagingCategories(true)} style={secondaryButtonStyle}>
+						Categories
+					</button>
 					<a href={expensesExportCsvUrl(filters)} style={secondaryButtonStyle}>
 						Export CSV
 					</a>
@@ -156,6 +165,17 @@ export default function ExpensesTab() {
 			</div>
 
 			<ExpenseFormModal key={`${editing?.id ?? "new"}-${formOpen}`} open={formOpen} onClose={() => setFormOpen(false)} onSubmit={handleSubmit} editing={editing} categories={allCategories} />
+			<ManageCategoriesModal
+				open={managingCategories}
+				onClose={() => setManagingCategories(false)}
+				categories={allCategories}
+				onRename={async (oldCategory, newCategory) => {
+					await renameExpenseCategory(oldCategory, newCategory);
+					await reloadCategories();
+					reload();
+				}}
+				allowClear={false}
+			/>
 		</div>
 	);
 }

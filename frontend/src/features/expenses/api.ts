@@ -51,6 +51,18 @@ export function expensesExportCsvUrl(filters: DateFilters = {}): string {
 	return `${API_BASE}/expenses/export/csv?${queryString(filters)}`;
 }
 
+// Same reassignment reasoning as items' renameItemCategory - see
+// backend/app/expenses/router.py:rename_category()'s docstring. Unlike
+// items, this can't clear a category to blank (Expense.category is
+// required), so merging into an existing category is the only way to
+// retire one here.
+export function renameExpenseCategory(oldCategory: string, newCategory: string): Promise<{ updated: number }> {
+	return apiRequest<{ updated: number }>(`/expenses/categories/${encodeURIComponent(oldCategory)}`, {
+		method: "PUT",
+		body: JSON.stringify({ new_category: newCategory }),
+	});
+}
+
 function toPayload(values: ExpenseFormValues) {
 	return {
 		category: values.category,

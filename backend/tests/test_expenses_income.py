@@ -56,3 +56,24 @@ def test_update_and_delete_income(client):
 
 	assert client.delete(f"{INCOME_URL}/{created['id']}").status_code == 204
 	assert client.get(INCOME_URL).json() == []
+
+
+def test_rename_expense_category_updates_every_matching_expense(client):
+	client.post(EXPENSES_URL, json={"category": "Old Name", "amount": 100})
+	client.post(EXPENSES_URL, json={"category": "Old Name", "amount": 50})
+	client.post(EXPENSES_URL, json={"category": "Other", "amount": 25})
+
+	res = client.put(f"{EXPENSES_URL}/categories/Old Name", json={"new_category": "New Name"})
+	assert res.status_code == 200, res.text
+	assert res.json()["updated"] == 2
+
+	categories = [e["category"] for e in client.get(EXPENSES_URL).json()]
+	assert categories.count("New Name") == 2
+	assert categories.count("Old Name") == 0
+	assert categories.count("Other") == 1
+
+
+def test_rename_expense_category_rejects_blank_new_name(client):
+	client.post(EXPENSES_URL, json={"category": "Rent", "amount": 100})
+	res = client.put(f"{EXPENSES_URL}/categories/Rent", json={"new_category": ""})
+	assert res.status_code == 422
