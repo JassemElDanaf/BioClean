@@ -15,6 +15,7 @@ def make_sale(**overrides):
 		tax_amount=0.75,
 		payment_method="cash",
 		amount_tendered=20.0,
+		exchange_rate=0,
 		lines=[
 			SimpleNamespace(item_name="BioMax 3L", qty=2, unit_price=6.0, line_total=12.0),
 			SimpleNamespace(item_name="BioChlore 1L", qty=3, unit_price=1.0, line_total=3.0),
@@ -62,6 +63,24 @@ def test_render_receipt_zero_tax_omits_tax_line():
 	text = printer.output.decode("ascii", errors="ignore")
 
 	assert "Tax" not in text
+
+
+def test_render_receipt_shows_lbp_total_when_sale_has_an_exchange_rate():
+	printer = Dummy()
+	render_receipt(printer, make_sale(exchange_rate=89500), lbp_rounding=1000)
+	text = printer.output.decode("ascii", errors="ignore")
+
+	assert "TOTAL (LBP)" in text
+	# 15.75 * 89500 = 1,409,625 -> rounds to the nearest 1,000.
+	assert "1,410,000 LBP" in text
+
+
+def test_render_receipt_omits_lbp_total_when_sale_predates_exchange_rate_tracking():
+	printer = Dummy()
+	render_receipt(printer, make_sale(exchange_rate=0))
+	text = printer.output.decode("ascii", errors="ignore")
+
+	assert "LBP" not in text
 
 
 def test_get_printer_rejects_unconfigured():

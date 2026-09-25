@@ -118,7 +118,20 @@ export default function ItemFormModal({
 					<input value={values.item_name} onChange={(e) => field("item_name", e.target.value)} required autoFocus style={inputStyle} />
 				</Field>
 				<Field label="Barcode">
-					<input value={values.barcode} onChange={(e) => field("barcode", e.target.value)} required style={inputStyle} />
+					{/* inputMode (not type="number") - the value stays a plain
+					    string (see ItemFormValues.barcode: string), which keeps
+					    leading zeros and letter-containing SKUs intact; this
+					    only asks a phone/tablet to show its numeric keypad, and
+					    a real barcode scanner types into it exactly the same
+					    either way (see lib/useBarcodeScanner.ts). */}
+					<input
+						value={values.barcode}
+						onChange={(e) => field("barcode", e.target.value)}
+						required
+						inputMode="numeric"
+						autoComplete="off"
+						style={inputStyle}
+					/>
 				</Field>
 				<div style={gridStyle(2)}>
 					<Field label="Category">

@@ -22,6 +22,7 @@ import os
 from PIL import Image
 
 from ..settings.models import AppSettings
+from ..shared.currency import usd_to_lbp
 from ..shared.timezone import to_local
 from .models import Sale
 
@@ -66,7 +67,7 @@ def _row(left: str, right: str, width: int = LINE_WIDTH) -> str:
 	return f"{left}{' ' * space}{right}\n"
 
 
-def render_receipt(printer, sale: Sale) -> None:
+def render_receipt(printer, sale: Sale, lbp_rounding: float = 1) -> None:
 	"""Writes the full receipt to `printer` (anything with the escpos.
 	Escpos interface - real hardware or a Dummy). Never calls printer.
 	close() - that's the caller's responsibility, since only the caller
@@ -97,6 +98,17 @@ def render_receipt(printer, sale: Sale) -> None:
 	printer.text(_row("TOTAL", f"${float(sale.total):.2f}"))
 	printer.set(bold=False)
 
+	# exchange_rate is 0 on a sale from before this app tracked one at all
+	# (see Sale.exchange_rate's own docstring) - a bogus "0 LBP" line on an
+	# old receipt would be worse than just leaving it off. Standard on a
+	# Lebanese receipt to show both currencies on the total, same as every
+	# on-screen total in this app already does (Sales History, Invoicing).
+	if sale.exchange_rate:
+		lbp_total = usd_to_lbp(float(sale.total), float(sale.exchange_rate), lbp_rounding)
+		printer.set(bold=True)
+		printer.text(_row("TOTAL (LBP)", f"{lbp_total:,.0f} LBP"))
+		printer.set(bold=False)
+
 	if sale.payment_method == "cash" and sale.amount_tendered is not None:
 		printer.text(_row("Tendered", f"${float(sale.amount_tendered):.2f}"))
 		change = float(sale.amount_tendered) - float(sale.total)
@@ -114,7 +126,7 @@ def render_receipt(printer, sale: Sale) -> None:
 def print_receipt(sale: Sale, settings: AppSettings) -> None:
 	printer = _get_printer(settings.printer_connection_type, settings.printer_target)
 	try:
-		render_receipt(printer, sale)
+		render_receipt(printer, sale, float(settings.lbp_rounding))
 	except PrinterError:
 		raise
 	except Exception as exc:

@@ -282,7 +282,8 @@ def get_sale_receipt_pdf(db: Session, sale: Sale) -> bytes:
 	from ..shared.archive import archive_document
 	from .pdf import generate_sale_receipt_pdf
 
-	pdf_bytes = generate_sale_receipt_pdf(sale)
+	lbp_rounding = float(get_or_create_settings(db).lbp_rounding)
+	pdf_bytes = generate_sale_receipt_pdf(sale, lbp_rounding)
 	sale.pdf_data = pdf_bytes
 	archive_document("Receipts", sale.created_at, f"receipt-{sale.id}.pdf", pdf_bytes)
 	db.commit()

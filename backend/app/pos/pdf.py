@@ -6,6 +6,7 @@ Subtotal/Tax/Total breakdown plus tendered/change for cash sales."""
 
 from jinja2 import Template
 
+from ..shared.currency import usd_to_lbp
 from ..shared.pdf import get_logo_data_uri, render_html_to_pdf
 from ..shared.timezone import to_local
 from .models import Sale
@@ -97,6 +98,9 @@ TEMPLATE = Template(
 				<td class="label">Total</td>
 				<td class="val">${{ '%.2f' % sale.total }}</td>
 			</tr>
+			{% if lbp_total %}
+			<tr><td class="label">Total (LBP)</td><td class="val">{{ '{:,.0f}'.format(lbp_total) }} LBP</td></tr>
+			{% endif %}
 			{% if sale.payment_method == 'cash' and sale.amount_tendered %}
 			<tr><td class="label">Tendered</td><td class="val">${{ '%.2f' % sale.amount_tendered }}</td></tr>
 			<tr><td class="label">Change Due</td><td class="val">${{ '%.2f' % change_due }}</td></tr>
@@ -105,20 +109,28 @@ TEMPLATE = Template(
 	</div>
 
 	<div class="footer"><span class="label">Payment Method:</span> {{ sale.payment_method.title() }}</div>
+	{% if lbp_total %}
+	<div class="footer">Converted at {{ '{:,.0f}'.format(sale.exchange_rate) }} LBP/$ (the rate in effect on the sale date)</div>
+	{% endif %}
 </body>
 </html>
 """
 )
 
 
-def generate_sale_receipt_pdf(sale: Sale) -> bytes:
+def generate_sale_receipt_pdf(sale: Sale, lbp_rounding: float = 1) -> bytes:
 	subtotal = float(sale.total) - float(sale.tax_amount)
 	change_due = float(sale.amount_tendered) - float(sale.total) if sale.amount_tendered is not None else None
+	# exchange_rate is 0 on a sale created before this app tracked one at
+	# all (see Sale.exchange_rate's own docstring) - showing a bogus "0
+	# LBP" total on an old receipt would be worse than just omitting it.
+	lbp_total = usd_to_lbp(float(sale.total), float(sale.exchange_rate), lbp_rounding) if sale.exchange_rate else None
 	html = TEMPLATE.render(
 		sale=sale,
 		logo=get_logo_data_uri(),
 		created_at=to_local(sale.created_at).strftime("%B %d, %Y %I:%M %p"),
 		subtotal=subtotal,
 		change_due=change_due,
+		lbp_total=lbp_total,
 	)
 	return render_html_to_pdf(html)
