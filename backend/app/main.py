@@ -14,6 +14,7 @@ from .items.router import router as items_router
 from .pos.router import router as pos_router
 from .purchases.router import router as purchases_router
 from .quotation.router import router as quotation_router
+from .reports.router import router as reports_router
 from .settings.router import router as app_settings_router
 from .suppliers.router import router as suppliers_router
 from .warehouses.router import router as warehouses_router
@@ -49,6 +50,7 @@ app.include_router(purchases_router, prefix=settings.api_v1_prefix)
 app.include_router(expenses_router, prefix=settings.api_v1_prefix)
 app.include_router(income_router, prefix=settings.api_v1_prefix)
 app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
+app.include_router(reports_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")

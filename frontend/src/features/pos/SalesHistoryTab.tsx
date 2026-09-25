@@ -6,7 +6,9 @@ import Select from "../../components/Select";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
 import { viewPdf } from "../../lib/pdf";
-import { createReturn, listReturns, listSales, printSaleReceipt, saleReceiptPdfUrl, salesExportCsvUrl, voidSale, type Return, type Sale, type SalesFilters } from "./api";
+import { createReturn, getSale, listReturns, printSaleReceipt, saleReceiptPdfUrl, voidSale, type Return, type Sale } from "./api";
+import { invoicePdfUrl } from "../invoicing/api";
+import { listRevenueHistory, revenueHistoryExportCsvUrl, type RevenueEntry, type RevenueFilters } from "../reports/revenueApi";
 import { useExchangeRate, usdToLbp } from "../../lib/currency";
 
 const PRESETS: DateRangePreset[] = [
@@ -37,12 +39,13 @@ export default function SalesHistoryTab() {
 	// USD->LBP math; the CURRENT rounding preference (a display concern,
 	// not a historical fact) decides how that figure gets rounded.
 	const exchangeRate = useExchangeRate();
-	const [sales, setSales] = useState<Sale[]>([]);
+	const [entries, setEntries] = useState<RevenueEntry[]>([]);
 	const [total, setTotal] = useState(0);
 	const [loading, setLoading] = useState(true);
 	const [error, setError] = useState<string | null>(null);
-	const [filters, setFilters] = useState<SalesFilters>(() => PRESETS[0].range());
+	const [filters, setFilters] = useState<RevenueFilters>(() => PRESETS[0].range());
 	const [viewing, setViewing] = useState<Sale | null>(null);
+	const [viewSaleError, setViewSaleError] = useState<string | null>(null);
 	const [voidError, setVoidError] = useState<string | null>(null);
 	const [printingId, setPrintingId] = useState<number | null>(null);
 	const [printError, setPrintError] = useState<string | null>(null);
@@ -53,6 +56,15 @@ export default function SalesHistoryTab() {
 	const [returnReason, setReturnReason] = useState("");
 	const [returnSubmitting, setReturnSubmitting] = useState(false);
 	const [returnError, setReturnError] = useState<string | null>(null);
+
+	async function handleViewSale(saleId: number) {
+		setViewSaleError(null);
+		try {
+			setViewing(await getSale(saleId));
+		} catch (err) {
+			setViewSaleError(err instanceof ApiError ? err.message : "Couldn't load this sale.");
+		}
+	}
 
 	async function handlePrint(saleId: number) {
 		setPrintingId(saleId);
@@ -68,9 +80,9 @@ export default function SalesHistoryTab() {
 
 	function reload() {
 		setLoading(true);
-		listSales(filters)
-			.then(({ sales, total }) => {
-				setSales(sales);
+		listRevenueHistory(filters)
+			.then(({ entries, total }) => {
+				setEntries(entries);
 				setTotal(total);
 				setError(null);
 			})
@@ -113,13 +125,10 @@ export default function SalesHistoryTab() {
 		setReturnError(null);
 		try {
 			await createReturn(viewing.id, { lines, refund_method: refundMethod, reason: returnReason || undefined });
-			const [updatedReturns, updatedSale] = await Promise.all([listReturns(viewing.id), listSales(filters)]);
+			const [updatedReturns, refreshed] = await Promise.all([listReturns(viewing.id), getSale(viewing.id)]);
 			setReturns(updatedReturns);
-			const refreshed = updatedSale.sales.find((s) => s.id === viewing.id);
-			if (refreshed) {
-				setViewing(refreshed);
-				setSales((list) => list.map((s) => (s.id === refreshed.id ? refreshed : s)));
-			}
+			setViewing(refreshed);
+			reload();
 			setReturnFormOpen(false);
 			setReturnQtys({});
 			setReturnReason("");
@@ -135,23 +144,52 @@ export default function SalesHistoryTab() {
 		setVoidError(null);
 		try {
 			const updated = await voidSale(sale.id);
-			setSales((list) => list.map((s) => (s.id === updated.id ? updated : s)));
 			setViewing((v) => (v?.id === updated.id ? updated : v));
+			reload();
 		} catch (err) {
 			setVoidError(err instanceof ApiError ? err.message : "Couldn't void this sale.");
 		}
 	}
 
-	const truncated = total > sales.length;
+	const truncated = total > entries.length;
 
-	if (loading && sales.length === 0) return <div>Loading sales history...</div>;
+	if (loading && entries.length === 0) return <div>Loading sales history...</div>;
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load sales history: {error}</div>;
+
+	function sourceLabel(entry: RevenueEntry): string {
+		if (entry.type === "pos_sale") return `POS - ${entry.method}`;
+		if (entry.type === "invoice") return "Invoice";
+		return "Income";
+	}
+
+	function entryStatusPill(entry: RevenueEntry) {
+		if (entry.type === "pos_sale" && entry.voided) {
+			return <span style={statusPillStyle("var(--neutral-100)", "var(--neutral-500)")}>Voided</span>;
+		}
+		if (entry.type === "invoice") return <span style={statusPillStyle("var(--brand-pale)", "var(--brand)")}>Paid</span>;
+		if (entry.type === "income") return <span style={statusPillStyle("var(--brand-pale)", "var(--brand)")}>Recorded</span>;
+		return <span style={statusPillStyle("var(--brand-pale)", "var(--brand)")}>Completed</span>;
+	}
+
+	function entryActions(entry: RevenueEntry) {
+		if (entry.type === "pos_sale") {
+			return [
+				{ label: "View Sale", onClick: () => handleViewSale(entry.id) },
+				{ label: "View PDF", onClick: () => viewPdf(saleReceiptPdfUrl(entry.id)) },
+				{ label: "Print Receipt", onClick: () => handlePrint(entry.id) },
+			];
+		}
+		if (entry.type === "invoice") {
+			return [{ label: "View Invoice PDF", onClick: () => viewPdf(invoicePdfUrl(entry.id)) }];
+		}
+		return [];
+	}
 
 	return (
 		<div>
 			{truncated && (
 				<div style={{ background: "#fff8e1", color: "#8a6100", padding: "8px 12px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
-					Showing the first {sales.length.toLocaleString()} of {total.toLocaleString()} sales - narrow the date range to see the rest.
+					Showing the first {entries.length.toLocaleString()} of {total.toLocaleString()} entries - narrow the date range to see the rest.
 				</div>
 			)}
 
@@ -162,56 +200,50 @@ export default function SalesHistoryTab() {
 				</div>
 				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
 					<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
-					<a href={salesExportCsvUrl(filters)} style={presetButtonStyle}>
+					<a href={revenueHistoryExportCsvUrl(filters)} style={presetButtonStyle}>
 						Export CSV
 					</a>
 				</div>
 			</div>
 
-			{(voidError || printError) && (
-				<div style={{ background: "#fde2e2", color: "#b42318", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{voidError || printError}</div>
+			{(voidError || printError || viewSaleError) && (
+				<div style={{ background: "#fde2e2", color: "#b42318", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>
+					{voidError || printError || viewSaleError}
+				</div>
 			)}
 
 			<div style={{ background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
 				<table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse" }}>
 					<thead>
 						<tr style={{ textAlign: "left", borderBottom: "2px solid var(--neutral-200)" }}>
-							<th style={thStyle}>Sale #</th>
+							<th style={thStyle}>Reference</th>
 							<th style={thStyle}>Date</th>
-							<th style={thStyle}>Items</th>
-							<th style={thStyle}>Payment</th>
-							<th style={{ ...thStyle, textAlign: "right" }}>Total</th>
+							<th style={thStyle}>Source</th>
+							<th style={{ ...thStyle, textAlign: "right" }}>Amount</th>
 							<th style={thStyle}>Status</th>
 							<th style={thStyle}></th>
 						</tr>
 					</thead>
 					<tbody>
-						{sales.map((sale) => (
-							<tr key={sale.id} style={{ borderBottom: "1px solid var(--neutral-100)" }}>
-								<td style={tdStyle}>#{sale.id}</td>
-								<td style={tdStyle}>{new Date(sale.created_at).toLocaleString()}</td>
+						{entries.map((entry) => (
+							<tr key={`${entry.type}-${entry.id}`} style={{ borderBottom: "1px solid var(--neutral-100)" }}>
 								<td style={tdStyle}>
-									{sale.lines.length} item{sale.lines.length === 1 ? "" : "s"}
+									{entry.reference}
+									{entry.label && <div style={{ fontSize: 12, color: "var(--neutral-500)" }}>{entry.label}</div>}
 								</td>
-								<td style={{ ...tdStyle, textTransform: "capitalize" }}>{sale.payment_method}</td>
-								<td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>${sale.total.toFixed(2)}</td>
-								<td style={tdStyle}>{statusPill(sale)}</td>
+								<td style={tdStyle}>{new Date(entry.occurred_at).toLocaleString()}</td>
+								<td style={{ ...tdStyle, textTransform: "capitalize" }}>{sourceLabel(entry)}</td>
+								<td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>${entry.amount.toFixed(2)}</td>
+								<td style={tdStyle}>{entryStatusPill(entry)}</td>
 								<td style={tdStyle}>
-									<ActionsMenu
-										actions={[
-											{ label: "View Sale", onClick: () => setViewing(sale) },
-											{ label: "View PDF", onClick: () => viewPdf(saleReceiptPdfUrl(sale.id)) },
-											{ label: "Print Receipt", onClick: () => handlePrint(sale.id) },
-											...(!sale.voided ? [{ label: "Void", onClick: () => handleVoid(sale), danger: true }] : []),
-										]}
-									/>
+									<ActionsMenu actions={entryActions(entry)} />
 								</td>
 							</tr>
 						))}
-						{sales.length === 0 && (
+						{entries.length === 0 && (
 							<tr>
-								<td colSpan={7} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
-									No sales in this range.
+								<td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
+									No revenue in this range.
 								</td>
 							</tr>
 						)}
@@ -372,15 +404,6 @@ export default function SalesHistoryTab() {
 
 function statusPillStyle(bg: string, fg: string): React.CSSProperties {
 	return { fontSize: 11, fontWeight: 700, padding: "3px 8px", borderRadius: 999, background: bg, color: fg };
-}
-
-function statusPill(sale: Sale) {
-	if (sale.voided) return <span style={statusPillStyle("var(--neutral-100)", "var(--neutral-500)")}>Voided</span>;
-	if (sale.returned_total > 0 && sale.returned_total >= sale.total - 0.01) {
-		return <span style={statusPillStyle("#fde2e2", "#b42318")}>Fully Returned</span>;
-	}
-	if (sale.returned_total > 0) return <span style={statusPillStyle("#fff3cd", "#8a6100")}>Partially Returned</span>;
-	return <span style={statusPillStyle("var(--brand-pale)", "var(--brand)")}>Completed</span>;
 }
 
 const thStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 13, color: "var(--neutral-500)" };
