@@ -1,4 +1,4 @@
-import { useEffect, useState, type ReactNode } from "react";
+import { useEffect, useRef, useState, type ReactNode } from "react";
 import type { Item } from "../features/inventory/types";
 import { CartIcon, ChevronRightIcon, MinusIcon, PlusIcon, TrashIcon } from "./icons";
 
@@ -140,12 +140,21 @@ const secondaryToggleStyle: React.CSSProperties = {
 // to >=1) on blur or Enter; Escape reverts to the last real qty.
 export function QtyInput({ qty, onCommit }: { qty: number; onCommit: (typed: number) => void }) {
 	const [draft, setDraft] = useState(String(qty));
+	// Enter commits and then blurs the input to close the keyboard/finish
+	// editing - but that blur itself fires onBlur, which would otherwise
+	// commit a second time before the parent's re-render lands (still
+	// seeing the old `qty`), re-applying the same delta on top of itself.
+	// This flag makes the pair idempotent: only the first of the two calls
+	// actually commits.
+	const committedRef = useRef(false);
 
 	useEffect(() => {
 		setDraft(String(qty));
 	}, [qty]);
 
 	function commit() {
+		if (committedRef.current) return;
+		committedRef.current = true;
 		const typed = Math.max(1, Math.floor(Number(draft)) || 1);
 		if (typed !== qty) onCommit(typed);
 		else setDraft(String(qty));
@@ -157,7 +166,10 @@ export function QtyInput({ qty, onCommit }: { qty: number; onCommit: (typed: num
 			inputMode="numeric"
 			min={1}
 			value={draft}
-			onChange={(e) => setDraft(e.target.value)}
+			onChange={(e) => {
+				committedRef.current = false;
+				setDraft(e.target.value);
+			}}
 			onFocus={(e) => e.target.select()}
 			onBlur={commit}
 			onKeyDown={(e) => {
@@ -166,6 +178,7 @@ export function QtyInput({ qty, onCommit }: { qty: number; onCommit: (typed: num
 					commit();
 					(e.target as HTMLInputElement).blur();
 				} else if (e.key === "Escape") {
+					committedRef.current = true;
 					setDraft(String(qty));
 					(e.target as HTMLInputElement).blur();
 				}
