@@ -1,4 +1,4 @@
-import { useState, type ReactNode } from "react";
+import { useEffect, useState, type ReactNode } from "react";
 import type { Item } from "../features/inventory/types";
 import { CartIcon, ChevronRightIcon, MinusIcon, PlusIcon, TrashIcon } from "./icons";
 
@@ -90,7 +90,7 @@ export default function DocumentCartPanel({
 									<button onClick={() => onChangeQty(line.item.id, -1)} style={qtyButtonStyle}>
 										<MinusIcon size={13} />
 									</button>
-									<span style={{ fontSize: 13, fontWeight: 700, minWidth: 18, textAlign: "center" }}>{line.qty}</span>
+									<QtyInput qty={line.qty} onCommit={(typed) => onChangeQty(line.item.id, typed - line.qty)} />
 									<button onClick={() => onChangeQty(line.item.id, 1)} disabled={respectStock && line.qty >= line.item.stock_qty} style={qtyButtonStyle}>
 										<PlusIcon size={13} />
 									</button>
@@ -132,6 +132,49 @@ const secondaryToggleStyle: React.CSSProperties = {
 	cursor: "pointer",
 	fontFamily: "inherit",
 };
+// A quantity someone wants to type directly (a wholesale order for 100 of
+// something) rather than clicking "+" a hundred times. Kept as its own
+// local draft string - not bound straight to `qty` - so clearing the field
+// to type a new number doesn't get instantly overwritten by the parent's
+// still-old value re-rendering mid-keystroke. Committed (parsed, clamped
+// to >=1) on blur or Enter; Escape reverts to the last real qty.
+export function QtyInput({ qty, onCommit }: { qty: number; onCommit: (typed: number) => void }) {
+	const [draft, setDraft] = useState(String(qty));
+
+	useEffect(() => {
+		setDraft(String(qty));
+	}, [qty]);
+
+	function commit() {
+		const typed = Math.max(1, Math.floor(Number(draft)) || 1);
+		if (typed !== qty) onCommit(typed);
+		else setDraft(String(qty));
+	}
+
+	return (
+		<input
+			type="number"
+			inputMode="numeric"
+			min={1}
+			value={draft}
+			onChange={(e) => setDraft(e.target.value)}
+			onFocus={(e) => e.target.select()}
+			onBlur={commit}
+			onKeyDown={(e) => {
+				if (e.key === "Enter") {
+					e.preventDefault();
+					commit();
+					(e.target as HTMLInputElement).blur();
+				} else if (e.key === "Escape") {
+					setDraft(String(qty));
+					(e.target as HTMLInputElement).blur();
+				}
+			}}
+			style={qtyInputStyle}
+		/>
+	);
+}
+
 const qtyButtonStyle: React.CSSProperties = {
 	width: 22,
 	height: 22,
@@ -143,6 +186,16 @@ const qtyButtonStyle: React.CSSProperties = {
 	justifyContent: "center",
 	cursor: "pointer",
 	padding: 0,
+};
+const qtyInputStyle: React.CSSProperties = {
+	width: 40,
+	fontSize: 13,
+	fontWeight: 700,
+	textAlign: "center",
+	padding: "3px 2px",
+	borderRadius: 6,
+	border: "1px solid var(--neutral-200)",
+	fontFamily: "inherit",
 };
 const primaryButtonStyle: React.CSSProperties = {
 	padding: "12px 16px",

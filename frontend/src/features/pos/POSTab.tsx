@@ -2,6 +2,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "../../components/Modal";
 import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { CardIcon, CartIcon, CashIcon, MinusIcon, OtherPaymentIcon, PlusIcon, SearchIcon, TrashIcon } from "../../components/icons";
+import { QtyInput } from "../../components/DocumentCartPanel";
 import StockBadge from "../../components/StockBadge";
 import { ApiError } from "../../lib/api";
 import { useBarcodeScanner } from "../../lib/useBarcodeScanner";
@@ -298,7 +299,7 @@ export default function POSTab() {
 										<button onClick={() => changeQty(line.item.id, -1)} style={qtyButtonStyle}>
 											<MinusIcon size={13} />
 										</button>
-										<span style={{ fontSize: 13, fontWeight: 700, minWidth: 18, textAlign: "center" }}>{line.qty}</span>
+										<QtyInput qty={line.qty} onCommit={(typed) => changeQty(line.item.id, typed - line.qty)} />
 										<button onClick={() => changeQty(line.item.id, 1)} disabled={line.qty >= line.item.stock_qty} style={qtyButtonStyle}>
 											<PlusIcon size={13} />
 										</button>
