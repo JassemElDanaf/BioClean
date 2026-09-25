@@ -167,7 +167,7 @@ export default function QuotationTab() {
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load quotations: {error}</div>;
 
 	return (
-		<div style={formOpen ? workspaceStyle : undefined}>
+		<div className={formOpen ? "doc-workspace" : undefined} style={formOpen ? workspaceStyle : undefined}>
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12, flexShrink: 0 }}>
 				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
 					<SidebarToggleButton />
@@ -186,12 +186,12 @@ export default function QuotationTab() {
 			    header's real height turns out to be, rather than guessing at a
 			    viewport-relative number from outside it. */}
 			{formOpen && (
-				<div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
-					<div style={{ flex: "0 0 68%", minWidth: 0 }}>
+				<div className="doc-workspace-row" style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+					<div className="doc-workspace-products" style={{ flex: "0 0 68%", minWidth: 0 }}>
 						<ProductGrid items={items} lines={lines} respectStock={false} onAdd={addLine} priceFor={priceFor} />
 					</div>
 
-					<div style={{ flex: "0 0 32%", minWidth: 300 }}>
+					<div className="doc-workspace-cart" style={{ flex: "0 0 32%", minWidth: 300 }}>
 						<DocumentCartPanel
 							lines={lines}
 							respectStock={false}

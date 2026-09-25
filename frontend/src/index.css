@@ -159,3 +159,49 @@ input[type="number"] {
 		width: 100% !important;
 	}
 }
+
+/* The "build a document" workspace (Quotation/Invoicing/Purchases, once
+   "+ New" is open) - ProductGrid and DocumentCartPanel side by side,
+   each 68%/32% of a height:100% row, same structural idea as POS's own
+   layout above and the same fix: below the breakpoint the row stacks to
+   full-width columns and the page scrolls normally instead of each half
+   independently scrolling inside a fixed-height box (that box's height
+   comes from percentages of an ancestor that itself goes height:auto on
+   mobile - left alone, it collapses to zero instead of just disappearing
+   cleanly, which is why every half needs its own override here, not just
+   the row). */
+@media (max-width: 900px) {
+	.doc-workspace {
+		height: auto !important;
+	}
+	.doc-workspace-row {
+		flex-direction: column !important;
+	}
+	.doc-workspace-products {
+		flex: none !important;
+		width: 100% !important;
+		min-width: 0 !important;
+	}
+	.doc-workspace-cart {
+		flex: none !important;
+		width: 100% !important;
+		min-width: 0 !important;
+	}
+	.doc-product-grid,
+	.doc-cart-panel {
+		height: auto !important;
+		overflow: visible !important;
+	}
+	.doc-product-grid-scroll,
+	.doc-cart-panel-scroll {
+		flex: none !important;
+		overflow-y: visible !important;
+	}
+	/* height:100% against a now auto-height ancestor resolves to 0 (a
+	   percentage height needs a definite-height parent) - min-height
+	   keeps the "no items yet" placeholder visible instead of collapsing. */
+	.doc-cart-panel-empty {
+		height: auto !important;
+		min-height: 160px;
+	}
+}

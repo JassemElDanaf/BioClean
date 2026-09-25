@@ -84,22 +84,10 @@ const FINANCE_GROUP: NavItem = {
 	],
 };
 
-// Customers nests under POS - who you're ringing up and who you're billing
-// are the same rolodex, and POS is where a cashier looks a customer up
-// most often (wholesale pricing at checkout).
-const POS_GROUP: NavItem = {
-	group: true,
-	label: "POS",
-	icon: POSIcon,
-	children: [
-		{ path: "pos", label: "POS", icon: POSIcon },
-		{ path: "customers", label: "Customers", icon: CustomersIcon },
-	],
-};
-
 const TABS: NavItem[] = [
 	{ path: "dashboard", label: "Dashboard", icon: DashboardIcon },
-	POS_GROUP,
+	{ path: "pos", label: "POS", icon: POSIcon },
+	{ path: "customers", label: "Customers", icon: CustomersIcon },
 	SALES_GROUP,
 	INVENTORY_GROUP,
 	FINANCE_GROUP,

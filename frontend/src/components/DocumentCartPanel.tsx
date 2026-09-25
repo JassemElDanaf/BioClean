@@ -55,7 +55,7 @@ export default function DocumentCartPanel({
 	const total = lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0);
 
 	return (
-		<div style={{ background: "#fff", borderRadius: 12, border: "1px solid var(--neutral-200)", display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
+		<div className="doc-cart-panel" style={{ background: "#fff", borderRadius: 12, border: "1px solid var(--neutral-200)", display: "flex", flexDirection: "column", height: "100%", minHeight: 0, overflow: "hidden" }}>
 			<div style={{ padding: "16px 18px 12px", borderBottom: "1px solid var(--neutral-200)" }}>
 				<div style={{ display: "grid", gap: 10 }}>{header}</div>
 
@@ -72,9 +72,9 @@ export default function DocumentCartPanel({
 				)}
 			</div>
 
-			<div style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
+			<div className="doc-cart-panel-scroll" style={{ flex: 1, overflowY: "auto", minHeight: 0 }}>
 				{lines.length === 0 ? (
-					<div style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--neutral-500)", gap: 10 }}>
+					<div className="doc-cart-panel-empty" style={{ display: "flex", flexDirection: "column", alignItems: "center", justifyContent: "center", height: "100%", color: "var(--neutral-500)", gap: 10 }}>
 						<CartIcon size={32} color="var(--neutral-300)" />
 						<span style={{ fontSize: 13 }}>No items added yet</span>
 					</div>

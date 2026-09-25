@@ -69,7 +69,7 @@ export default function ProductGrid({
 	}, [items, search, category]);
 
 	return (
-		<div style={{ display: "flex", flexDirection: "column", background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, height: "100%", minHeight: 0, overflow: "hidden" }}>
+		<div className="doc-product-grid" style={{ display: "flex", flexDirection: "column", background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, height: "100%", minHeight: 0, overflow: "hidden" }}>
 			{scanError && (
 				<div
 					style={{
@@ -121,7 +121,7 @@ export default function ProductGrid({
 			    paired with DocumentCartPanel's matching calc(100vh - 32px) cap
 			    so both columns read as one fixed-height workspace: the catalog
 			    scrolls on the left, the cart scrolls on the right, independently. */}
-			<div style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: 4 }}>
+			<div className="doc-product-grid-scroll" style={{ flex: 1, overflowY: "auto", minHeight: 0, paddingTop: 4 }}>
 				<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(160px, 1fr))", gap: 12 }}>
 					{visibleItems.map((item) => {
 						const inCartQty = lineQtyFor(item.id);
