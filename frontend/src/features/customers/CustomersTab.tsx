@@ -1,6 +1,7 @@
 import { useEffect, useMemo, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
 import { SearchIcon } from "../../components/icons";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
 import { createCustomer, customersExportCsvUrl, deleteCustomer, listCustomers, updateCustomer } from "./api";
 import CustomerFormModal from "./CustomerFormModal";
@@ -49,13 +50,16 @@ export default function CustomersTab() {
 		return customers.filter((c) => [c.name, c.phone, c.email].some((v) => v?.toLowerCase().includes(q)));
 	}, [customers, search]);
 
-	if (loading) return <div>Loading customers...</div>;
+	if (loading && customers.length === 0) return <div>Loading customers...</div>;
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load customers: {error}</div>;
 
 	return (
 		<div>
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-				<h2 style={{ margin: 0 }}>Customers ({visible.length})</h2>
+				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+					<SidebarToggleButton />
+					<h2 style={{ margin: 0 }}>Customers ({visible.length})</h2>
+				</div>
 				<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
 					<div style={{ position: "relative" }}>
 						<span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-500)", pointerEvents: "none" }}>

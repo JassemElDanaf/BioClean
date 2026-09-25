@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
+import Select from "../../components/Select";
 import { auditExportCsvUrl, getAuditReport, listItems, listWarehouses } from "./api";
 import type { AuditFilters, AuditReportRow, Item, Warehouse } from "./types";
 
@@ -72,46 +73,31 @@ export default function AuditReport() {
 				/>
 
 				<Field label="Item">
-					<select
+					<Select
 						value={filters.item_id ?? ""}
-						onChange={(e) => setFilters((f) => ({ ...f, item_id: e.target.value ? Number(e.target.value) : undefined }))}
-						style={inputStyle}
-					>
-						<option value="">All items</option>
-						{items.map((i) => (
-							<option key={i.id} value={i.id}>
-								{i.barcode} - {i.item_name}
-							</option>
-						))}
-					</select>
+						onChange={(v) => setFilters((f) => ({ ...f, item_id: v || undefined }))}
+						placeholder="All items"
+						options={items.map((i) => ({ value: i.id, label: `${i.barcode} - ${i.item_name}` }))}
+						style={{ minWidth: 200 }}
+					/>
 				</Field>
 				<Field label="Warehouse">
-					<select
+					<Select
 						value={filters.warehouse_id ?? ""}
-						onChange={(e) => setFilters((f) => ({ ...f, warehouse_id: e.target.value ? Number(e.target.value) : undefined }))}
-						style={inputStyle}
-					>
-						<option value="">All warehouses</option>
-						{warehouses.map((w) => (
-							<option key={w.id} value={w.id}>
-								{w.name}
-							</option>
-						))}
-					</select>
+						onChange={(v) => setFilters((f) => ({ ...f, warehouse_id: v || undefined }))}
+						placeholder="All warehouses"
+						options={warehouses.map((w) => ({ value: w.id, label: w.name }))}
+						style={{ minWidth: 160 }}
+					/>
 				</Field>
 				<Field label="Event">
-					<select
+					<Select
 						value={filters.reason ?? ""}
-						onChange={(e) => setFilters((f) => ({ ...f, reason: e.target.value || undefined }))}
-						style={inputStyle}
-					>
-						<option value="">All events</option>
-						{Object.entries(REASON_LABELS).map(([value, label]) => (
-							<option key={value} value={value}>
-								{label}
-							</option>
-						))}
-					</select>
+						onChange={(v) => setFilters((f) => ({ ...f, reason: v || undefined }))}
+						placeholder="All events"
+						options={Object.entries(REASON_LABELS).map(([value, label]) => ({ value, label }))}
+						style={{ minWidth: 160 }}
+					/>
 				</Field>
 
 				<a href={auditExportCsvUrl(filters)} style={secondaryButtonStyle}>
@@ -119,7 +105,7 @@ export default function AuditReport() {
 				</a>
 			</div>
 
-			{loading ? (
+			{loading && rows.length === 0 ? (
 				<div>Loading...</div>
 			) : (
 				<div style={{ overflowX: "auto", maxWidth: "100%" }}>

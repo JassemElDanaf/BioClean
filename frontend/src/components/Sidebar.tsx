@@ -1,10 +1,28 @@
-import { NavLink } from "react-router-dom";
+import { Link, NavLink, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ComponentType } from "react";
+import { ChevronRightIcon } from "./icons";
+import { useSidebar } from "./SidebarContext";
 
 export interface NavTab {
 	path: string;
 	label: string;
 	icon: ComponentType<{ size?: number; color?: string }>;
+}
+
+// A collapsible section (e.g. "Sales" grouping Quotations/Invoicing/Sales
+// History) - visually one sidebar row that expands to reveal its own
+// leaf tabs, instead of every module getting its own top-level slot.
+export interface NavGroup {
+	group: true;
+	label: string;
+	icon: ComponentType<{ size?: number; color?: string }>;
+	children: NavTab[];
+}
+
+export type NavItem = NavTab | NavGroup;
+
+function isGroup(item: NavItem): item is NavGroup {
+	return "group" in item && item.group === true;
 }
 
 const DEFAULT_WIDTH = 240;
@@ -15,12 +33,30 @@ const MAX_WIDTH = 420;
 // behavior as VS Code's own sidebar splitter.
 const COLLAPSE_THRESHOLD = 120;
 
-export default function Sidebar({ tabs, settingsTab }: { tabs: NavTab[]; settingsTab: NavTab }) {
+export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutTabs: NavTab[] }) {
+	const { collapsed, setCollapsed } = useSidebar();
 	const [width, setWidth] = useState(() => Number(localStorage.getItem("bioclean-sidebar-width")) || DEFAULT_WIDTH);
-	const [collapsed, setCollapsed] = useState(() => localStorage.getItem("bioclean-sidebar-collapsed") === "true");
 	const [menuOpen, setMenuOpen] = useState(false);
 	const draggingRef = useRef(false);
 	const menuRef = useRef<HTMLDivElement>(null);
+	const asideRef = useRef<HTMLElement>(null);
+	const location = useLocation();
+
+	// Groups start expanded - there's room for it, and it saves a click to
+	// reveal tabs (Quotations/Invoicing/Sales History) that are used
+	// constantly - tracked per group label so each still remembers its own
+	// collapsed/expanded state if toggled shut.
+	const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+		const initial: Record<string, boolean> = {};
+		for (const item of tabs) {
+			if (isGroup(item)) initial[item.label] = true;
+		}
+		return initial;
+	});
+
+	function toggleGroup(label: string) {
+		setExpandedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+	}
 
 	useEffect(() => {
 		if (!menuOpen) return;
@@ -31,13 +67,27 @@ export default function Sidebar({ tabs, settingsTab }: { tabs: NavTab[]; setting
 		return () => document.removeEventListener("mousedown", handleClickOutside);
 	}, [menuOpen]);
 
+	// Clicking anywhere outside the open panel (the main content area, most
+	// often) tucks it away, the same way a mobile nav drawer would - keeps
+	// it from just sitting open over the page once you've clicked past it.
+	// Every page's own inline toggle button (see SidebarToggleButton) is
+	// excluded via its shared class, not a single ref, since there's one
+	// per page rather than one global instance.
+	useEffect(() => {
+		if (collapsed) return;
+		function handleClickOutside(e: MouseEvent) {
+			const target = e.target as HTMLElement;
+			if (asideRef.current?.contains(target)) return;
+			if (target.closest?.(".sidebar-toggle-btn")) return;
+			setCollapsed(true);
+		}
+		document.addEventListener("mousedown", handleClickOutside);
+		return () => document.removeEventListener("mousedown", handleClickOutside);
+	}, [collapsed, setCollapsed]);
+
 	useEffect(() => {
 		localStorage.setItem("bioclean-sidebar-width", String(width));
 	}, [width]);
-
-	useEffect(() => {
-		localStorage.setItem("bioclean-sidebar-collapsed", String(collapsed));
-	}, [collapsed]);
 
 	function handleDragStart(e: React.MouseEvent) {
 		e.preventDefault();
@@ -67,90 +117,146 @@ export default function Sidebar({ tabs, settingsTab }: { tabs: NavTab[]; setting
 		window.addEventListener("mouseup", handleMouseUp);
 	}
 
-	if (collapsed) {
-		return (
-			<button
-				onClick={() => setCollapsed(false)}
-				title="Show sidebar"
+	return (
+		<>
+			<aside
+				ref={asideRef}
 				style={{
-					width: 18,
+					width: collapsed ? 0 : width,
 					flexShrink: 0,
-					height: "100vh",
+					overflow: "hidden",
+					transition: "width 220ms ease",
 					background: "#fff",
-					border: "none",
-					borderRight: "1px solid var(--neutral-200)",
-					cursor: "pointer",
-					display: "flex",
-					alignItems: "center",
-					justifyContent: "center",
-					padding: 0,
+					borderRight: collapsed ? "none" : "1px solid var(--neutral-200)",
+					height: "100vh",
+					position: "relative",
 				}}
 			>
-				<span style={{ color: "var(--neutral-300)", fontSize: 11 }}>▶</span>
-			</button>
-		);
-	}
-
-	return (
-		<aside
-			style={{
-				width,
-				flexShrink: 0,
-				background: "#fff",
-				borderRight: "1px solid var(--neutral-200)",
-				display: "flex",
-				flexDirection: "column",
-				height: "100vh",
-				position: "relative",
-			}}
-		>
-			<div style={{ padding: "20px 20px 16px" }}>
+				{/* Fixed to the expanded width regardless of the animating
+				    parent, so the panel slides shut instead of its contents
+				    reflowing/wrapping mid-transition. */}
+				<div style={{ width, height: "100%", display: "flex", flexDirection: "column" }}>
+			<Link to="/dashboard" onClick={() => setCollapsed(true)} style={{ display: "block", padding: "20px 20px 16px", textDecoration: "none" }}>
 				<div style={{ fontSize: 22, fontWeight: 800, color: "var(--brand)", letterSpacing: 0.2, lineHeight: 1 }}>BioClean</div>
 				<div style={{ fontSize: 11, fontWeight: 600, color: "var(--neutral-500)", letterSpacing: 1.2, marginTop: 2 }}>CHEMICALS, LB</div>
-			</div>
+			</Link>
 
 			<nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "4px 12px" }}>
-				{tabs.map((tab) => (
-					<NavLink
-						key={tab.path}
-						to={`/${tab.path}`}
-						style={({ isActive }) => ({
-							display: "flex",
-							alignItems: "center",
-							gap: 10,
-							padding: "10px 12px",
-							marginBottom: 2,
-							borderRadius: 8,
-							textDecoration: "none",
-							fontSize: 14,
-							fontWeight: 600,
-							color: isActive ? "var(--brand)" : "var(--neutral-900)",
-							background: isActive ? "var(--brand-pale)" : "transparent",
-							whiteSpace: "nowrap",
-						})}
-					>
-						{({ isActive }) => (
-							<>
-								<tab.icon size={18} color={isActive ? "var(--brand)" : "var(--neutral-500)"} />
-								{tab.label}
-							</>
-						)}
-					</NavLink>
-				))}
+				{tabs.map((item) => {
+					if (isGroup(item)) {
+						const expanded = !!expandedGroups[item.label];
+						const groupActive = item.children.some((child) => location.pathname === `/${child.path}`);
+						return (
+							<div key={item.label}>
+								<button
+									onClick={() => toggleGroup(item.label)}
+									style={{
+										display: "flex",
+										alignItems: "center",
+										gap: 10,
+										width: "100%",
+										padding: "10px 12px",
+										marginBottom: 2,
+										borderRadius: 8,
+										border: "none",
+										background: groupActive ? "var(--brand-pale)" : "transparent",
+										color: groupActive ? "var(--brand)" : "var(--neutral-900)",
+										fontSize: 14,
+										fontWeight: 600,
+										fontFamily: "inherit",
+										cursor: "pointer",
+										whiteSpace: "nowrap",
+									}}
+								>
+									<item.icon size={18} color={groupActive ? "var(--brand)" : "var(--neutral-500)"} />
+									<span style={{ flex: 1, textAlign: "left" }}>{item.label}</span>
+									<span style={{ display: "flex", transform: expanded ? "rotate(90deg)" : "none", transition: "transform 120ms" }}>
+										<ChevronRightIcon size={14} color="var(--neutral-500)" />
+									</span>
+								</button>
+								{expanded && (
+									<div style={{ marginBottom: 2 }}>
+										{item.children.map((child) => (
+											<NavLink
+												key={child.path}
+												to={`/${child.path}`}
+												onClick={() => setCollapsed(true)}
+												style={({ isActive }) => ({
+													display: "flex",
+													alignItems: "center",
+													gap: 10,
+													padding: "9px 12px 9px 34px",
+													marginBottom: 2,
+													borderRadius: 8,
+													textDecoration: "none",
+													fontSize: 13,
+													fontWeight: 600,
+													color: isActive ? "var(--brand)" : "var(--neutral-500)",
+													background: isActive ? "var(--brand-pale)" : "transparent",
+													whiteSpace: "nowrap",
+												})}
+											>
+												{child.label}
+											</NavLink>
+										))}
+									</div>
+								)}
+							</div>
+						);
+					}
+					return (
+						<NavLink
+							key={item.path}
+							to={`/${item.path}`}
+							onClick={() => setCollapsed(true)}
+							style={({ isActive }) => ({
+								display: "flex",
+								alignItems: "center",
+								gap: 10,
+								padding: "10px 12px",
+								marginBottom: 2,
+								borderRadius: 8,
+								textDecoration: "none",
+								fontSize: 14,
+								fontWeight: 600,
+								color: isActive ? "var(--brand)" : "var(--neutral-900)",
+								background: isActive ? "var(--brand-pale)" : "transparent",
+								whiteSpace: "nowrap",
+							})}
+						>
+							{({ isActive }) => (
+								<>
+									<item.icon size={18} color={isActive ? "var(--brand)" : "var(--neutral-500)"} />
+									{item.label}
+								</>
+							)}
+						</NavLink>
+					);
+				})}
 			</nav>
 
 			{/* Single-operator system (confirmed - Admin only, see backend
 			    settings.current_user) - shown here as a fixed identity rather
 			    than a real logged-in-user switcher, since there isn't one.
-			    Doubles as the way to reach Settings, which deliberately isn't
-			    in the main tab list above - click to open the flyout. */}
+			    Doubles as the way to reach Reports/Settings, which deliberately
+			    aren't in the main tab list above - click to open the flyout. */}
 			<div ref={menuRef} style={{ position: "relative", borderTop: "1px solid var(--neutral-200)" }}>
 				{menuOpen && (
 					<div style={flyoutStyle}>
-						<NavLink to={`/${settingsTab.path}`} onClick={() => setMenuOpen(false)} style={flyoutItemStyle}>
-							<settingsTab.icon size={16} color="var(--neutral-500)" />
-							{settingsTab.label}
-						</NavLink>
+						{flyoutTabs.map((tab) => (
+							<NavLink
+								key={tab.path}
+								to={`/${tab.path}`}
+								onClick={() => {
+									setMenuOpen(false);
+									setCollapsed(true);
+								}}
+								style={flyoutItemStyle}
+							>
+								<tab.icon size={16} color="var(--neutral-500)" />
+								{tab.label}
+							</NavLink>
+						))}
 					</div>
 				)}
 				<button onClick={() => setMenuOpen((v) => !v)} style={adminButtonStyle}>
@@ -192,7 +298,9 @@ export default function Sidebar({ tabs, settingsTab }: { tabs: NavTab[]; setting
 					zIndex: 10,
 				}}
 			/>
-		</aside>
+				</div>
+			</aside>
+		</>
 	);
 }
 

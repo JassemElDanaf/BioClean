@@ -2,6 +2,8 @@ import { useEffect, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
 import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
 import Modal from "../../components/Modal";
+import DatePicker from "../../components/DatePicker";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
 import { createIncome, deleteIncome, incomeExportCsvUrl, listIncome, updateIncome, type DateFilters, type Income, type IncomeFormValues } from "./api";
 
@@ -65,13 +67,16 @@ export default function IncomeTab() {
 
 	const runningTotal = income.reduce((sum, e) => sum + e.amount, 0);
 
-	if (loading) return <div>Loading income...</div>;
+	if (loading && income.length === 0) return <div>Loading income...</div>;
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load income: {error}</div>;
 
 	return (
 		<div>
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-				<h2 style={{ margin: 0 }}>Income ({total})</h2>
+				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+					<SidebarToggleButton />
+					<h2 style={{ margin: 0 }}>Income ({total})</h2>
+				</div>
 				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
 					<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
 					<a href={incomeExportCsvUrl(filters)} style={secondaryButtonStyle}>
@@ -191,7 +196,7 @@ function IncomeFormModal({
 						<input type="number" step="0.01" min={0.01} value={values.amount || ""} onChange={(e) => field("amount", Number(e.target.value))} required style={inputStyle} />
 					</Field>
 					<Field label="Date">
-						<input type="date" value={values.date} onChange={(e) => field("date", e.target.value)} style={inputStyle} />
+						<DatePicker value={values.date} onChange={(v) => field("date", v)} />
 					</Field>
 				</div>
 				<Field label="Description (optional)">

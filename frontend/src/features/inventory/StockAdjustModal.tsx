@@ -1,5 +1,6 @@
 import { useEffect, useState } from "react";
 import Modal from "../../components/Modal";
+import Select from "../../components/Select";
 import { ApiError } from "../../lib/api";
 import { adjustStock } from "./api";
 import type { Item } from "./types";
@@ -94,13 +95,7 @@ export default function StockAdjustModal({
 
 				<label style={labelStyle}>
 					Reason
-					<select value={reason} onChange={(e) => setReason(e.target.value)} style={inputStyle}>
-						{REASONS.map((r) => (
-							<option key={r.value} value={r.value}>
-								{r.label}
-							</option>
-						))}
-					</select>
+					<Select value={reason} onChange={setReason} options={REASONS} />
 				</label>
 
 				{isReceiving && (

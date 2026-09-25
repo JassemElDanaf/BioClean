@@ -1,10 +1,12 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import Modal from "../../components/Modal";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { CardIcon, CartIcon, CashIcon, MinusIcon, OtherPaymentIcon, PlusIcon, SearchIcon, TrashIcon } from "../../components/icons";
 import StockBadge from "../../components/StockBadge";
 import { ApiError } from "../../lib/api";
 import { useBarcodeScanner } from "../../lib/useBarcodeScanner";
 import { useTaxRate } from "../../lib/currency";
+import { pickProductEmoji } from "../../lib/productEmoji";
 import { listItems } from "../inventory/api";
 import type { Item } from "../inventory/types";
 import { checkout, printSaleReceipt, type Sale } from "./api";
@@ -22,27 +24,6 @@ const PAYMENT_METHODS: { value: PaymentMethod; label: string; icon: typeof CashI
 	{ value: "whish", label: "Whish", icon: CardIcon },
 	{ value: "other", label: "Other", icon: OtherPaymentIcon },
 ];
-
-// Cosmetic only (matches the reference design's per-product icon) - first
-// keyword found in the item name wins, falls back to a generic bottle.
-const EMOJI_RULES: [RegExp, string][] = [
-	[/dish/i, "🧽"],
-	[/laundry|fabric|softener/i, "🧺"],
-	[/glass/i, "🪟"],
-	[/floor/i, "🧹"],
-	[/bleach|descaler|acid/i, "🧪"],
-	[/paper|tissue/i, "🧻"],
-	[/apron|glove|disposable/i, "🧤"],
-	[/toilet|bathroom/i, "🚽"],
-	[/antiseptic|dettol|sanitiz/i, "🧴"],
-];
-
-function pickEmoji(name: string): string {
-	for (const [pattern, emoji] of EMOJI_RULES) {
-		if (pattern.test(name)) return emoji;
-	}
-	return "🧴";
-}
 
 function round2(n: number): number {
 	return Math.round(n * 100) / 100;
@@ -260,16 +241,19 @@ export default function POSTab() {
 				</div>
 			)}
 			<div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
-				<div style={{ position: "relative", marginBottom: 14 }}>
-					<span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-500)" }}>
-						<SearchIcon size={18} />
-					</span>
-					<input
-						value={search}
-						onChange={(e) => setSearch(e.target.value)}
-						placeholder="Search by product name or barcode..."
-						style={searchInputStyle}
-					/>
+				<div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
+					<SidebarToggleButton />
+					<div style={{ position: "relative", flex: 1 }}>
+						<span style={{ position: "absolute", left: 14, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-500)" }}>
+							<SearchIcon size={18} />
+						</span>
+						<input
+							value={search}
+							onChange={(e) => setSearch(e.target.value)}
+							placeholder="Search by product name or barcode..."
+							style={searchInputStyle}
+						/>
+					</div>
 				</div>
 
 				<div style={{ display: "flex", gap: 8, overflowX: "auto", paddingBottom: 12, marginBottom: 4 }}>
@@ -344,13 +328,13 @@ export default function POSTab() {
 						/>
 					</div>
 					{taxRate > 0 && <SummaryRow label={`Tax (${taxRate}%)`} value={`$${taxAmount.toFixed(2)}`} />}
-					<div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 4px", borderTop: "1px solid var(--neutral-200)", marginTop: 6 }}>
-						<span style={{ fontSize: 15, fontWeight: 700 }}>Total</span>
-						<span style={{ fontSize: 18, fontWeight: 800 }}>${total.toFixed(2)}</span>
-					</div>
 
+					{/* Above Total, not below it - Total should always sit the same
+					    fixed distance above the (always-present) payment buttons, not
+					    jump around depending on which payment method happens to add
+					    its own extra field. */}
 					{paymentMethod === "cash" && (
-						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginTop: 14, marginBottom: 10 }}>
+						<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
 							<label style={{ fontSize: 13, color: "var(--neutral-500)" }}>Amount Tendered</label>
 							<input
 								type="number"
@@ -364,13 +348,18 @@ export default function POSTab() {
 						</div>
 					)}
 					{paymentMethod === "cash" && amountTendered !== "" && (
-						<div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, marginBottom: 10, color: changeDue !== null && changeDue < 0 ? "crimson" : "var(--neutral-900)" }}>
+						<div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", color: changeDue !== null && changeDue < 0 ? "crimson" : "var(--neutral-900)" }}>
 							<span>Change Due</span>
 							<span style={{ fontWeight: 700 }}>${(changeDue ?? 0).toFixed(2)}</span>
 						</div>
 					)}
 
-					<div style={{ display: "flex", gap: 8, margin: "4px 0 10px" }}>
+					<div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 4px", borderTop: "1px solid var(--neutral-200)", marginTop: 6 }}>
+						<span style={{ fontSize: 15, fontWeight: 700 }}>Total</span>
+						<span style={{ fontSize: 18, fontWeight: 800 }}>${total.toFixed(2)}</span>
+					</div>
+
+					<div style={{ display: "flex", gap: 8, margin: "10px 0 10px" }}>
 						{PAYMENT_METHODS.map((m) => (
 							<button key={m.value} onClick={() => setPaymentMethod(m.value)} style={m.value === paymentMethod ? paymentActiveStyle : paymentStyle}>
 								<m.icon size={15} />
@@ -428,11 +417,13 @@ function ProductCard({ item, inCartQty, onAdd }: { item: Item; inCartQty: number
 				<img src={item.image_url} alt={item.item_name} style={{ width: "100%", height: 90, objectFit: "cover", borderRadius: 8, marginBottom: 10 }} />
 			) : (
 				<div style={{ width: "100%", height: 90, borderRadius: 8, background: "var(--brand-pale)", display: "flex", alignItems: "center", justifyContent: "center", fontSize: 32, marginBottom: 10 }}>
-					{pickEmoji(item.item_name)}
+					{pickProductEmoji(item.item_name)}
 				</div>
 			)}
 			<div style={{ fontSize: 14, fontWeight: 700, lineHeight: 1.25 }}>{item.item_name}</div>
-			<div style={{ fontSize: 12, color: "var(--neutral-500)", marginBottom: 8 }}>{item.uom}</div>
+			<div style={{ fontSize: 12, color: "var(--neutral-500)", marginBottom: 8 }}>
+				{item.stock_qty} {item.uom}
+			</div>
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 10 }}>
 				<span style={{ fontSize: 15, fontWeight: 800 }}>${item.retail_price.toFixed(2)}</span>
 				<StockBadge stockQty={item.stock_qty} reorderLevel={item.reorder_level} />

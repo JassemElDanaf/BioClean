@@ -7,9 +7,10 @@ import type { AuditFilters, AuditReportRow, Item, ItemFormValues, StockMovement,
 // the limit the way a bare fetch would.
 const ITEMS_PAGE_SIZE = 1000;
 
-export function listItems(filters: { lowStockOnly?: boolean } = {}): Promise<{ items: Item[]; total: number }> {
+export function listItems(filters: { lowStockOnly?: boolean; outOfStockOnly?: boolean } = {}): Promise<{ items: Item[]; total: number }> {
 	const params = new URLSearchParams({ limit: String(ITEMS_PAGE_SIZE) });
 	if (filters.lowStockOnly) params.set("low_stock", "true");
+	if (filters.outOfStockOnly) params.set("out_of_stock", "true");
 	return apiRequestWithCount<Item[]>(`/items?${params.toString()}`).then(({ data, total }) => ({ items: data, total }));
 }
 

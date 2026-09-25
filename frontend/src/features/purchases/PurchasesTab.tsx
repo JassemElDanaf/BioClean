@@ -1,9 +1,13 @@
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
 import DateRangeFilter, { isoDate, todayIso, type DateRangePreset, type DateRangeValue } from "../../components/DateRangeFilter";
-import DocumentLineBuilder, { type DraftLine } from "../../components/DocumentLineBuilder";
+import DocumentCartPanel, { type DraftLine } from "../../components/DocumentCartPanel";
 import Modal from "../../components/Modal";
+import ProductGrid from "../../components/ProductGrid";
+import Select from "../../components/Select";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
+import { viewPdf } from "../../lib/pdf";
 import { listItems, listSuppliers } from "../inventory/api";
 import type { Item, Supplier } from "../inventory/types";
 import { cancelPurchaseOrder, createPurchaseOrder, listPurchaseOrders, markPurchaseOrderPaid, purchaseOrderPdfUrl, receivePurchaseOrder, type PurchaseOrder } from "./api";
@@ -63,6 +67,7 @@ export default function PurchasesTab() {
 	const [actionError, setActionError] = useState<string | null>(null);
 	const [dateFilters, setDateFilters] = useState<DateRangeValue>(() => PRESETS[0].range());
 	const [formOpen, setFormOpen] = useState(false);
+	const [highlightId, setHighlightId] = useState<number | null>(null);
 
 	function reloadAll() {
 		setLoading(true);
@@ -72,6 +77,15 @@ export default function PurchasesTab() {
 				setSuppliers(suppliersResult);
 				setOrders(ordersResult.orders);
 				setError(null);
+				// Nearly every restock comes from BioClean's own factory, not an
+				// outside supplier - default to it so the common case needs zero
+				// clicks, while the dropdown right below stays free to pick
+				// someone else for the rare order placed elsewhere.
+				setSupplierId((current) => {
+					if (current !== "") return current;
+					const factory = suppliersResult.find((s) => s.name === "BioClean Factory");
+					return factory ? factory.id : current;
+				});
 			})
 			.catch((err) => setError(err instanceof Error ? err.message : "Failed to load"))
 			.finally(() => setLoading(false));
@@ -97,14 +111,12 @@ export default function PurchasesTab() {
 		setLines((prev) => prev.filter((l) => l.item.id !== itemId));
 	}
 
-	const total = useMemo(() => lines.reduce((sum, l) => sum + l.qty * l.unitPrice, 0), [lines]);
-
 	async function handleCreate() {
 		if (lines.length === 0 || supplierId === "") return;
 		setSaving(true);
 		setCreateError(null);
 		try {
-			await createPurchaseOrder({
+			const created = await createPurchaseOrder({
 				supplier_id: supplierId,
 				lines: lines.map((l) => ({ item_id: l.item.id, qty: l.qty, unit_cost: l.unitPrice })),
 				notes: notes || undefined,
@@ -114,6 +126,8 @@ export default function PurchasesTab() {
 			setNotes("");
 			setFormOpen(false);
 			reloadAll();
+			setHighlightId(created.id);
+			setTimeout(() => setHighlightId(null), 2500);
 		} catch (err) {
 			setCreateError(err instanceof ApiError ? err.message : "Couldn't create this purchase order.");
 		} finally {
@@ -156,13 +170,16 @@ export default function PurchasesTab() {
 		}
 	}
 
-	if (loading) return <div>Loading purchases...</div>;
+	if (loading && orders.length === 0) return <div>Loading purchases...</div>;
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load purchases: {error}</div>;
 
 	return (
-		<div>
-			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12 }}>
-				<h2 style={{ margin: 0 }}>Purchase Orders ({orders.length})</h2>
+		<div style={formOpen ? workspaceStyle : undefined}>
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 12, flexWrap: "wrap", gap: 12, flexShrink: 0 }}>
+				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+					<SidebarToggleButton />
+					<h2 style={{ margin: 0 }}>Purchase Orders ({orders.length})</h2>
+				</div>
 				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
 					<DateRangeFilter presets={PRESETS} value={dateFilters} onChange={setDateFilters} />
 					<button onClick={() => setFormOpen((v) => !v)} style={primaryButtonStyle}>
@@ -172,42 +189,40 @@ export default function PurchasesTab() {
 			</div>
 
 			{formOpen && (
-				<div style={{ display: "flex", gap: 20, marginBottom: 24, alignItems: "flex-start" }}>
-					<div style={{ flex: 1, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16 }}>
-						<DocumentLineBuilder items={items} lines={lines} respectStock={false} onAdd={addLine} onChangeQty={changeQty} onRemove={removeLine} priceFor={(item) => item.cost_price} />
+				<div style={{ display: "flex", gap: 16, flex: 1, minHeight: 0 }}>
+					<div style={{ flex: "0 0 68%", minWidth: 0 }}>
+						<ProductGrid items={items} lines={lines} respectStock={false} onAdd={addLine} priceFor={(item) => item.cost_price} />
 					</div>
 
-					<div style={{ width: 320, flexShrink: 0, background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, padding: 16, display: "grid", gap: 10 }}>
-						<label style={fieldLabelStyle}>
-							Supplier
-							<select value={supplierId} onChange={(e) => setSupplierId(e.target.value ? Number(e.target.value) : "")} style={inputStyle} required>
-								<option value="">Select a supplier...</option>
-								{suppliers.map((s) => (
-									<option key={s.id} value={s.id}>
-										{s.name}
-									</option>
-								))}
-							</select>
-						</label>
-						<label style={fieldLabelStyle}>
-							Notes (optional)
-							<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={2} style={{ ...inputStyle, resize: "vertical" }} />
-						</label>
-
-						<div style={{ display: "flex", justifyContent: "space-between", borderTop: "1px solid var(--neutral-200)", paddingTop: 10, marginTop: 4 }}>
-							<span style={{ fontWeight: 700 }}>Total</span>
-							<span style={{ fontWeight: 800, fontSize: 18 }}>${total.toFixed(2)}</span>
-						</div>
-
-						{createError && <div style={{ color: "crimson", fontSize: 13 }}>{createError}</div>}
-
-						<button
-							onClick={handleCreate}
-							disabled={lines.length === 0 || supplierId === "" || saving}
-							style={lines.length === 0 || supplierId === "" || saving ? primaryButtonDisabledStyle : primaryButtonStyle}
-						>
-							{saving ? "Creating..." : "Create Purchase Order"}
-						</button>
+					<div style={{ flex: "0 0 32%", minWidth: 300 }}>
+						<DocumentCartPanel
+							lines={lines}
+							respectStock={false}
+							onChangeQty={changeQty}
+							onRemove={removeLine}
+							error={createError}
+							actionLabel={saving ? "Creating..." : "Create Purchase Order"}
+							actionDisabled={lines.length === 0 || supplierId === "" || saving}
+							onAction={handleCreate}
+							header={
+								<label style={fieldLabelStyle}>
+									Supplier
+									<Select
+										value={supplierId}
+										onChange={setSupplierId}
+										placeholder="Select a supplier..."
+										required
+										options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+									/>
+								</label>
+							}
+							secondary={
+								<label style={fieldLabelStyle}>
+									Notes
+									<textarea value={notes} onChange={(e) => setNotes(e.target.value)} rows={3} style={{ ...inputStyle, resize: "vertical" }} />
+								</label>
+							}
+						/>
 					</div>
 				</div>
 			)}
@@ -216,63 +231,72 @@ export default function PurchasesTab() {
 				<div style={{ background: "#fde2e2", color: "#b42318", padding: "10px 14px", borderRadius: 8, fontSize: 13, marginBottom: 12 }}>{actionError}</div>
 			)}
 
-			<div style={{ background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
-				<table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse" }}>
-					<thead>
-						<tr style={{ textAlign: "left", borderBottom: "2px solid var(--neutral-200)" }}>
-							<th style={thStyle}>PO #</th>
-							<th style={thStyle}>Date</th>
-							<th style={thStyle}>Supplier</th>
-							<th style={{ ...thStyle, textAlign: "right" }}>Total</th>
-							<th style={thStyle}>Status</th>
-							<th style={thStyle}>Payment</th>
-							<th style={thStyle}></th>
-						</tr>
-					</thead>
-					<tbody>
-						{orders.map((po) => (
-							<tr key={po.id} style={{ borderBottom: "1px solid var(--neutral-100)" }}>
-								<td style={tdStyle}>#{po.id}</td>
-								<td style={tdStyle}>{new Date(po.created_at).toLocaleDateString()}</td>
-								<td style={tdStyle}>{po.supplier_name ?? "-"}</td>
-								<td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>${po.total.toFixed(2)}</td>
-								<td style={tdStyle}>
-									<span style={statusPill(po.status)}>{po.status}</span>
-								</td>
-								<td style={tdStyle}>
-									{po.status === "received" && (
-										<span style={paymentPillStyle(po.payment_status)}>{po.payment_status}</span>
-									)}
-								</td>
-								<td style={tdStyle}>
-									<ActionsMenu
-										actions={[
-											{ label: "View", onClick: () => setViewing(po) },
-											{ label: "Download PDF", onClick: () => window.open(purchaseOrderPdfUrl(po.id), "_blank") },
-											...(po.status === "pending"
-												? [
-														{ label: "Receive", onClick: () => handleReceive(po) },
-														{ label: "Cancel", onClick: () => handleCancel(po), danger: true },
-													]
-												: []),
-											...(po.status === "received" && po.payment_status === "unpaid"
-												? [{ label: "Mark Paid", onClick: () => handleMarkPaid(po) }]
-												: []),
-										]}
-									/>
-								</td>
+			{!formOpen && (
+				<div style={{ background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, overflowX: "auto", overflowY: "hidden", maxWidth: "100%" }}>
+					<table style={{ width: "100%", minWidth: 700, borderCollapse: "collapse" }}>
+						<thead>
+							<tr style={{ textAlign: "left", borderBottom: "2px solid var(--neutral-200)" }}>
+								<th style={thStyle}>PO #</th>
+								<th style={thStyle}>Date</th>
+								<th style={thStyle}>Supplier</th>
+								<th style={{ ...thStyle, textAlign: "right" }}>Total</th>
+								<th style={thStyle}>Status</th>
+								<th style={thStyle}>Payment</th>
+								<th style={thStyle}></th>
 							</tr>
-						))}
-						{orders.length === 0 && (
-							<tr>
-								<td colSpan={7} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
-									No purchase orders yet.
-								</td>
-							</tr>
-						)}
-					</tbody>
-				</table>
-			</div>
+						</thead>
+						<tbody>
+							{orders.map((po) => (
+								<tr
+									key={po.id}
+									style={{
+										borderBottom: "1px solid var(--neutral-100)",
+										background: po.id === highlightId ? "var(--brand-pale)" : "transparent",
+										transition: "background-color 1.2s ease",
+									}}
+								>
+									<td style={tdStyle}>#{po.id}</td>
+									<td style={tdStyle}>{new Date(po.created_at).toLocaleDateString()}</td>
+									<td style={tdStyle}>{po.supplier_name ?? "-"}</td>
+									<td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>${po.total.toFixed(2)}</td>
+									<td style={tdStyle}>
+										<span style={statusPill(po.status)}>{po.status}</span>
+									</td>
+									<td style={tdStyle}>
+										{po.status === "received" && (
+											<span style={paymentPillStyle(po.payment_status)}>{po.payment_status}</span>
+										)}
+									</td>
+									<td style={tdStyle}>
+										<ActionsMenu
+											actions={[
+												{ label: "View Purchase Order", onClick: () => setViewing(po) },
+												{ label: "View PDF", onClick: () => viewPdf(purchaseOrderPdfUrl(po.id)) },
+												...(po.status === "pending"
+													? [
+															{ label: "Receive", onClick: () => handleReceive(po) },
+															{ label: "Cancel", onClick: () => handleCancel(po), danger: true },
+														]
+													: []),
+												...(po.status === "received" && po.payment_status === "unpaid"
+													? [{ label: "Mark Paid", onClick: () => handleMarkPaid(po) }]
+													: []),
+											]}
+										/>
+									</td>
+								</tr>
+							))}
+							{orders.length === 0 && (
+								<tr>
+									<td colSpan={7} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
+										No purchase orders yet.
+									</td>
+								</tr>
+							)}
+						</tbody>
+					</table>
+				</div>
+			)}
 
 			<Modal open={!!viewing} onClose={() => setViewing(null)} title={viewing ? `PO #${viewing.id}` : ""}>
 				{viewing && (
@@ -302,9 +326,13 @@ export default function PurchasesTab() {
 						{actionError && <div style={{ color: "crimson", fontSize: 13, marginTop: 10 }}>{actionError}</div>}
 
 						<div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-							<a href={purchaseOrderPdfUrl(viewing.id)} target="_blank" rel="noreferrer" style={{ ...smallButtonStyle, flex: 1, textDecoration: "none", textAlign: "center" }}>
-								Download PDF
-							</a>
+							<button
+								type="button"
+								onClick={() => viewPdf(purchaseOrderPdfUrl(viewing.id))}
+								style={{ ...smallButtonStyle, flex: 1 }}
+							>
+								View PDF
+							</button>
 							{viewing.status === "pending" && (
 								<>
 									<button onClick={() => handleReceive(viewing)} style={{ ...primaryButtonStyle, flex: 1 }}>
@@ -337,6 +365,11 @@ const inputStyle: React.CSSProperties = {
 	fontSize: 14,
 	boxSizing: "border-box",
 };
+// Same as POS's own layout: `main` (App.tsx) is a flex:1 child of a
+// height:100vh column, so its computed height is definite - "height:100%"
+// resolves against that, filling main's content box exactly. Only applied
+// while the workspace (product grid + cart) is open.
+const workspaceStyle: React.CSSProperties = { height: "100%", display: "flex", flexDirection: "column" };
 const thStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 13, color: "var(--neutral-500)" };
 const tdStyle: React.CSSProperties = { padding: "8px 12px", fontSize: 14 };
 const primaryButtonStyle: React.CSSProperties = {
@@ -348,11 +381,6 @@ const primaryButtonStyle: React.CSSProperties = {
 	fontWeight: 700,
 	fontSize: 14,
 	cursor: "pointer",
-};
-const primaryButtonDisabledStyle: React.CSSProperties = {
-	...primaryButtonStyle,
-	background: "var(--brand-pale)",
-	cursor: "not-allowed",
 };
 const smallButtonStyle: React.CSSProperties = {
 	padding: "6px 10px",

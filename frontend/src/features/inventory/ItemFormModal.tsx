@@ -1,5 +1,6 @@
 import { useState } from "react";
 import Modal from "../../components/Modal";
+import Select from "../../components/Select";
 import { ApiError } from "../../lib/api";
 import { uploadItemImage } from "./api";
 import type { Item, ItemFormValues } from "./types";
@@ -124,13 +125,17 @@ export default function ItemFormModal({
 						<input value={values.category} onChange={(e) => field("category", e.target.value)} style={inputStyle} />
 					</Field>
 					<Field label="Unit of Measure">
-						<select value={values.uom} onChange={(e) => field("uom", e.target.value)} style={inputStyle}>
-							<option value="PCS">PCS (pieces)</option>
-							<option value="L">Liter</option>
-							<option value="Kg">Kg</option>
-							<option value="Box">Box</option>
-							<option value="Carton">Carton</option>
-						</select>
+						<Select
+							value={values.uom}
+							onChange={(v) => field("uom", v)}
+							options={[
+								{ value: "PCS", label: "PCS (pieces)" },
+								{ value: "L", label: "Liter" },
+								{ value: "Kg", label: "Kg" },
+								{ value: "Box", label: "Box" },
+								{ value: "Carton", label: "Carton" },
+							]}
+						/>
 					</Field>
 				</div>
 

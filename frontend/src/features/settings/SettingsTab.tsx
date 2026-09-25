@@ -1,4 +1,15 @@
 import { useEffect, useState } from "react";
+import {
+	BuildingIcon,
+	CheckCircleIcon,
+	DatabaseIcon,
+	InvoiceIcon,
+	PrinterIcon,
+	ReceiptIcon,
+	WalletIcon,
+} from "../../components/icons";
+import Select from "../../components/Select";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
 import {
 	getExchangeRate,
@@ -13,15 +24,110 @@ import {
 	type PrinterConnectionType,
 } from "./api";
 
+type SectionKey = "general" | "currency" | "sales-tax" | "pos-receipts" | "documents" | "system";
+
+const SECTIONS: { key: SectionKey; label: string; icon: typeof WalletIcon }[] = [
+	{ key: "general", label: "General", icon: BuildingIcon },
+	{ key: "currency", label: "Currency & Pricing", icon: WalletIcon },
+	{ key: "sales-tax", label: "Sales & Tax", icon: ReceiptIcon },
+	{ key: "pos-receipts", label: "POS & Receipts", icon: PrinterIcon },
+	{ key: "documents", label: "Documents", icon: InvoiceIcon },
+	{ key: "system", label: "System", icon: DatabaseIcon },
+];
+
 export default function SettingsTab() {
+	const [active, setActive] = useState<SectionKey>("general");
+
 	return (
 		<div>
-			<h2 style={{ marginTop: 0 }}>Settings</h2>
-			<div style={{ display: "flex", flexDirection: "column", gap: 20 }}>
-				<ExchangeRateCard />
-				<TaxRateCard />
-				<PrinterCard />
+			<div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 20 }}>
+				<SidebarToggleButton />
+				<h2 style={{ margin: 0 }}>Settings</h2>
 			</div>
+			<div style={{ display: "flex", gap: 24, alignItems: "flex-start" }}>
+				<div style={{ width: 200, flexShrink: 0 }}>
+					{SECTIONS.map((s) => (
+						<button key={s.key} onClick={() => setActive(s.key)} style={s.key === active ? navButtonActiveStyle : navButtonStyle}>
+							<s.icon size={16} color={s.key === active ? "var(--brand)" : "var(--neutral-500)"} />
+							{s.label}
+						</button>
+					))}
+				</div>
+
+				<div style={{ flex: 1, minWidth: 0, display: "grid", gap: 16 }}>
+					{active === "general" && (
+						<ComingSoonCard
+							icon={BuildingIcon}
+							title="Company Profile"
+							description="Company name, logo, address, phone, email, and default currency. Not configurable yet - this section is reserved for when that's built."
+						/>
+					)}
+
+					{active === "currency" && <ExchangeRateCard />}
+
+					{active === "sales-tax" && (
+						<>
+							<TaxRateCard />
+							<ComingSoonCard
+								icon={ReceiptIcon}
+								title="Payment Terms & Numbering"
+								description="Default payment terms and custom invoice/quotation number formats. Not configurable yet - documents currently use INV-{id}/QUO-{id}."
+							/>
+						</>
+					)}
+
+					{active === "pos-receipts" && <PrinterCard />}
+
+					{active === "documents" && (
+						<InfoCard
+							icon={InvoiceIcon}
+							title="Invoices, Quotations & Purchase Orders"
+							description="Every PDF (invoice, quotation, purchase order, POS receipt) already shares one branded template - your logo, BioClean green, and the same layout everywhere. Per-document customization (custom numbering, terms text, footer notes) isn't configurable yet."
+						/>
+					)}
+
+					{active === "system" && (
+						<InfoCard
+							icon={DatabaseIcon}
+							title="Document Backups"
+							description="Every generated PDF and CSV export automatically saves a copy to this device's Documents folder, organized by type and date - a running backup with zero setup, in addition to what's stored in the database."
+						/>
+					)}
+				</div>
+			</div>
+		</div>
+	);
+}
+
+function SectionHeader({ icon: Icon, title, description }: { icon: typeof WalletIcon; title: string; description: string }) {
+	return (
+		<div style={{ display: "flex", gap: 12, alignItems: "flex-start" }}>
+			<div style={{ width: 36, height: 36, borderRadius: 10, background: "var(--brand-pale)", display: "flex", alignItems: "center", justifyContent: "center", flexShrink: 0 }}>
+				<Icon size={18} color="var(--brand)" />
+			</div>
+			<div>
+				<h3 style={cardTitleStyle}>{title}</h3>
+				<p style={cardDescStyle}>{description}</p>
+			</div>
+		</div>
+	);
+}
+
+function ComingSoonCard({ icon, title, description }: { icon: typeof WalletIcon; title: string; description: string }) {
+	return (
+		<div style={{ ...cardStyle, opacity: 0.75 }}>
+			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "flex-start", gap: 12 }}>
+				<SectionHeader icon={icon} title={title} description={description} />
+				<span style={comingSoonPillStyle}>Coming soon</span>
+			</div>
+		</div>
+	);
+}
+
+function InfoCard({ icon, title, description }: { icon: typeof WalletIcon; title: string; description: string }) {
+	return (
+		<div style={cardStyle}>
+			<SectionHeader icon={icon} title={title} description={description} />
 		</div>
 	);
 }
@@ -65,43 +171,35 @@ function ExchangeRateCard() {
 
 	return (
 		<div style={cardStyle}>
-			<h3 style={cardTitleStyle}>USD → LBP Exchange Rate</h3>
-			<p style={cardDescStyle}>
-				Every price in the system is stored in USD. This rate is what every USD amount converts to LBP with,
-				everywhere in the app - update it whenever the market rate changes. Past sales and invoices keep
-				whichever rate was live when they were created, so changing this never rewrites history.
-			</p>
-			<form onSubmit={handleSave} style={{ display: "grid", gap: 10 }}>
-				<div style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-					<label style={labelStyle}>
-						1 USD =
+			<SectionHeader
+				icon={WalletIcon}
+				title="USD → LBP Exchange Rate"
+				description="Converts every USD price to LBP throughout the app. Past sales and invoices keep whichever rate was live when created - changing this never rewrites history."
+			/>
+
+			<form onSubmit={handleSave} style={{ marginTop: 16, display: "grid", gap: 12 }}>
+				<SettingRow label="1 USD equals" description="Current market rate.">
+					<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 						<input type="number" step="1" min="1" value={input} onChange={(e) => setInput(e.target.value)} style={inputStyle} />
-					</label>
-					<span style={{ paddingBottom: 9, color: "var(--neutral-500)", fontSize: 13 }}>LBP</span>
-				</div>
-				<label style={labelStyle}>
-					Round LBP amounts to the nearest
-					<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
+						<span style={{ color: "var(--neutral-500)", fontSize: 13 }}>LBP</span>
+					</div>
+				</SettingRow>
+				<SettingRow label="Round LBP to nearest" description="Real cash denominations are large - nobody makes change to the lira.">
+					<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
 						<input type="number" step="1" min="1" value={rounding} onChange={(e) => setRounding(e.target.value)} style={inputStyle} />
 						<span style={{ color: "var(--neutral-500)", fontSize: 13 }}>LBP</span>
 					</div>
-				</label>
-				<p style={{ ...cardDescStyle, margin: 0, fontSize: 12 }}>
-					Real LBP cash denominations are large - nobody can make change to the nearest lira. Every LBP figure
-					shown anywhere in the app (Inventory, receipts) rounds to this increment.
-				</p>
-				<button type="submit" disabled={saving} style={{ ...buttonStyle, justifySelf: "start" }}>
-					{saving ? "Saving..." : "Save"}
-				</button>
+				</SettingRow>
+
+				<CardFooter saving={saving} savedMsg={savedMsg} currentValue={rate != null ? `1 USD = ${rate.toLocaleString()} LBP` : undefined} />
 			</form>
-			{savedMsg && <div style={savedMsgStyle}>Saved.</div>}
-			{rate != null && <div style={currentValueStyle}>Current rate: 1 USD = {rate.toLocaleString()} LBP</div>}
 
 			<button type="button" onClick={() => setShowHistory((v) => !v)} style={historyToggleStyle}>
 				{showHistory ? "Hide" : "Show"} rate history ({history.length})
 			</button>
 			{showHistory && (
 				<div style={{ marginTop: 8, maxHeight: 180, overflowY: "auto", border: "1px solid var(--neutral-200)", borderRadius: 8 }}>
+					{history.length === 0 && <div style={{ padding: 12, fontSize: 12, color: "var(--neutral-500)" }}>No rate changes recorded yet.</div>}
 					{history.map((h) => (
 						<div key={h.id} style={historyRowStyle}>
 							<span>{new Date(h.effective_at).toLocaleString()}</span>
@@ -142,23 +240,20 @@ function TaxRateCard() {
 
 	return (
 		<div style={cardStyle}>
-			<h3 style={cardTitleStyle}>Sales Tax Rate</h3>
-			<p style={cardDescStyle}>
-				Applied to every POS sale at checkout, snapshotted onto the receipt so a later rate change never alters a
-				past sale's total. Set to 0 to charge no tax.
-			</p>
-			<form onSubmit={handleSave} style={{ display: "flex", gap: 8, alignItems: "flex-end" }}>
-				<label style={labelStyle}>
-					Tax rate
-					<input type="number" step="0.1" min="0" max="100" value={input} onChange={(e) => setInput(e.target.value)} style={inputStyle} />
-				</label>
-				<span style={{ paddingBottom: 9, color: "var(--neutral-500)", fontSize: 13 }}>%</span>
-				<button type="submit" disabled={saving} style={buttonStyle}>
-					{saving ? "Saving..." : "Save"}
-				</button>
+			<SectionHeader
+				icon={ReceiptIcon}
+				title="Sales Tax Rate"
+				description="Applied to every POS sale at checkout, snapshotted onto the receipt so a later change never alters a past sale's total."
+			/>
+			<form onSubmit={handleSave} style={{ marginTop: 16, display: "grid", gap: 12 }}>
+				<SettingRow label="Tax rate" description="Set to 0 to charge no tax.">
+					<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+						<input type="number" step="0.1" min="0" max="100" value={input} onChange={(e) => setInput(e.target.value)} style={inputStyle} />
+						<span style={{ color: "var(--neutral-500)", fontSize: 13 }}>%</span>
+					</div>
+				</SettingRow>
+				<CardFooter saving={saving} savedMsg={savedMsg} currentValue={rate != null ? `Current rate: ${rate}%` : undefined} />
 			</form>
-			{savedMsg && <div style={savedMsgStyle}>Saved.</div>}
-			{rate != null && <div style={currentValueStyle}>Current rate: {rate}%</div>}
 		</div>
 	);
 }
@@ -206,59 +301,119 @@ function PrinterCard() {
 
 	return (
 		<div style={cardStyle}>
-			<h3 style={cardTitleStyle}>Receipt Printer</h3>
-			<p style={cardDescStyle}>
-				The small thermal printer at the register - separate from the Letter-size PDF receipt (that one's for
-				download/email/backup). Save your connection here, then send a test print to confirm it actually works.
-			</p>
-			<form onSubmit={handleSave} style={{ display: "grid", gap: 10 }}>
-				<label style={labelStyle}>
-					Connection
-					<select value={connectionType} onChange={(e) => setConnectionType(e.target.value as PrinterConnectionType)} style={inputStyle}>
-						<option value="none">Not connected</option>
-						<option value="windows">USB (installed as a Windows printer)</option>
-						<option value="network">Network (Ethernet/WiFi, IP address)</option>
-					</select>
-				</label>
+			<SectionHeader
+				icon={PrinterIcon}
+				title="Thermal Receipt Printer"
+				description="The small till-side printer - separate from the Letter-size PDF receipt, which is for download/email/backup."
+			/>
+			<form onSubmit={handleSave} style={{ marginTop: 16, display: "grid", gap: 12 }}>
+				<SettingRow label="Connection" description="How the printer is reached.">
+					<Select
+						value={connectionType}
+						onChange={setConnectionType}
+						options={[
+							{ value: "none", label: "Not connected" },
+							{ value: "windows", label: "USB (Windows printer)" },
+							{ value: "network", label: "Network (Ethernet/WiFi)" },
+						]}
+					/>
+				</SettingRow>
 
 				{connectionType === "windows" && (
-					<label style={labelStyle}>
-						Windows printer name (leave blank to use the system default)
+					<SettingRow label="Printer name" description="Leave blank to use the system default.">
 						<input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="e.g. POS-80" style={inputStyle} />
-					</label>
+					</SettingRow>
 				)}
 				{connectionType === "network" && (
-					<label style={labelStyle}>
-						Printer address
+					<SettingRow label="Printer address" description="IP address and port.">
 						<input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="192.168.1.50:9100" style={inputStyle} />
-					</label>
+					</SettingRow>
 				)}
 
-				<div style={{ display: "flex", gap: 8 }}>
-					<button type="submit" disabled={saving} style={buttonStyle}>
-						{saving ? "Saving..." : "Save"}
-					</button>
-					<button type="button" onClick={handleTestPrint} disabled={testing || connectionType === "none"} style={testButtonStyle}>
-						{testing ? "Printing..." : "Send Test Print"}
-					</button>
+				<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--neutral-100)", paddingTop: 12, marginTop: 4 }}>
+					<div style={{ display: "flex", gap: 8 }}>
+						<button type="submit" disabled={saving} style={buttonStyle}>
+							{saving ? "Saving..." : "Save"}
+						</button>
+						<button type="button" onClick={handleTestPrint} disabled={testing || connectionType === "none"} style={testButtonStyle}>
+							{testing ? "Printing..." : "Send Test Print"}
+						</button>
+					</div>
+					{savedMsg && <FeedbackMsg ok text="Saved" />}
 				</div>
+				{testResult && <FeedbackMsg ok={testResult.ok} text={testResult.message} />}
 			</form>
-			{savedMsg && <div style={savedMsgStyle}>Saved.</div>}
-			{testResult && <div style={{ ...savedMsgStyle, color: testResult.ok ? "var(--brand)" : "crimson" }}>{testResult.message}</div>}
 		</div>
 	);
 }
 
+function SettingRow({ label, description, children }: { label: string; description?: string; children: React.ReactNode }) {
+	return (
+		<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", gap: 16, flexWrap: "wrap" }}>
+			<div style={{ minWidth: 160 }}>
+				<div style={{ fontSize: 13, fontWeight: 600, color: "var(--neutral-900)" }}>{label}</div>
+				{description && <div style={{ fontSize: 12, color: "var(--neutral-500)", marginTop: 1 }}>{description}</div>}
+			</div>
+			<div style={{ flexShrink: 0 }}>{children}</div>
+		</div>
+	);
+}
+
+function CardFooter({ saving, savedMsg, currentValue }: { saving: boolean; savedMsg: boolean; currentValue?: string }) {
+	return (
+		<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", borderTop: "1px solid var(--neutral-100)", paddingTop: 12, marginTop: 4, flexWrap: "wrap", gap: 8 }}>
+			<div style={{ display: "flex", alignItems: "center", gap: 12 }}>
+				<button type="submit" disabled={saving} style={buttonStyle}>
+					{saving ? "Saving..." : "Save"}
+				</button>
+				{savedMsg && <FeedbackMsg ok text="Saved" />}
+			</div>
+			{currentValue && <div style={{ fontSize: 12, color: "var(--neutral-500)" }}>{currentValue}</div>}
+		</div>
+	);
+}
+
+function FeedbackMsg({ ok, text }: { ok: boolean; text: string }) {
+	return (
+		<span style={{ display: "inline-flex", alignItems: "center", gap: 5, fontSize: 13, fontWeight: 600, color: ok ? "var(--brand)" : "crimson" }}>
+			{ok && <CheckCircleIcon size={14} color="var(--brand)" />}
+			{text}
+		</span>
+	);
+}
+
+const navButtonStyle: React.CSSProperties = {
+	display: "flex",
+	alignItems: "center",
+	gap: 10,
+	width: "100%",
+	textAlign: "left",
+	padding: "10px 12px",
+	marginBottom: 2,
+	borderRadius: 8,
+	border: "none",
+	background: "transparent",
+	cursor: "pointer",
+	fontSize: 14,
+	fontWeight: 600,
+	color: "var(--neutral-900)",
+	fontFamily: "inherit",
+};
+const navButtonActiveStyle: React.CSSProperties = {
+	...navButtonStyle,
+	background: "var(--brand-pale)",
+	color: "var(--brand)",
+};
 const cardStyle: React.CSSProperties = {
 	background: "#fff",
 	borderRadius: 12,
 	border: "1px solid var(--neutral-200)",
 	padding: 20,
-	maxWidth: 420,
 };
-const cardTitleStyle: React.CSSProperties = { marginTop: 0, fontSize: 15 };
+const cardTitleStyle: React.CSSProperties = { margin: 0, fontSize: 15 };
+const cardDescStyle: React.CSSProperties = { fontSize: 13, color: "var(--neutral-500)", lineHeight: 1.5, margin: "4px 0 0" };
 const historyToggleStyle: React.CSSProperties = {
-	marginTop: 12,
+	marginTop: 14,
 	background: "none",
 	border: "none",
 	color: "var(--brand)",
@@ -274,16 +429,22 @@ const historyRowStyle: React.CSSProperties = {
 	fontSize: 12,
 	borderBottom: "1px solid var(--neutral-100)",
 };
-const cardDescStyle: React.CSSProperties = { fontSize: 13, color: "var(--neutral-500)", lineHeight: 1.5 };
-const labelStyle: React.CSSProperties = { display: "grid", gap: 4, fontSize: 13, color: "var(--neutral-500)", flex: 1 };
-const savedMsgStyle: React.CSSProperties = { color: "var(--brand)", fontSize: 13, marginTop: 8 };
-const currentValueStyle: React.CSSProperties = { marginTop: 12, fontSize: 13, color: "var(--neutral-500)" };
+const comingSoonPillStyle: React.CSSProperties = {
+	fontSize: 11,
+	fontWeight: 700,
+	padding: "3px 8px",
+	borderRadius: 999,
+	background: "var(--neutral-100)",
+	color: "var(--neutral-500)",
+	whiteSpace: "nowrap",
+};
 const inputStyle: React.CSSProperties = {
 	padding: "8px 10px",
 	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	fontSize: 14,
 	boxSizing: "border-box",
+	width: 160,
 };
 const buttonStyle: React.CSSProperties = {
 	padding: "9px 16px",

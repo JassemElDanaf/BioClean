@@ -213,3 +213,125 @@ export function PlusIcon(props: IconProps) {
 		</Svg>
 	);
 }
+
+export function TrendUpIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M3 17l6-6 4 4 8-8" />
+			<path d="M15 7h6v6" />
+		</Svg>
+	);
+}
+
+export function TrendDownIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M3 7l6 6 4-4 8 8" />
+			<path d="M15 17h6v-6" />
+		</Svg>
+	);
+}
+
+export function AlertIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M12 3 2 20h20L12 3Z" />
+			<path d="M12 10v4" />
+			<circle cx="12" cy="17.2" r="0.15" fill={props.color ?? "currentColor"} stroke="none" />
+		</Svg>
+	);
+}
+
+export function WalletIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M3 7.5A2.5 2.5 0 0 1 5.5 5h11A2.5 2.5 0 0 1 19 7.5V8H5.5A2.5 2.5 0 0 1 3 5.5" />
+			<rect x="3" y="8" width="18" height="12" rx="2" />
+			<circle cx="16" cy="14" r="1.4" />
+		</Svg>
+	);
+}
+
+export function BoxStackIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<rect x="4" y="4" width="7" height="7" rx="1.2" />
+			<rect x="13" y="4" width="7" height="7" rx="1.2" />
+			<rect x="4" y="13" width="7" height="7" rx="1.2" />
+			<rect x="13" y="13" width="7" height="7" rx="1.2" />
+		</Svg>
+	);
+}
+
+export function ChevronRightIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M9 5l7 7-7 7" />
+		</Svg>
+	);
+}
+
+export function BuildingIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<rect x="4" y="3" width="12" height="18" rx="1" />
+			<path d="M8 7h1M8 11h1M8 15h1M12 7h1M12 11h1M12 15h1" />
+			<path d="M16 10h3a1 1 0 0 1 1 1v10h-4" />
+			<path d="M9 21v-3h2v3" />
+		</Svg>
+	);
+}
+
+export function DatabaseIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<ellipse cx="12" cy="5.5" rx="7.5" ry="2.8" />
+			<path d="M4.5 5.5V18c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8V5.5" />
+			<path d="M4.5 12c0 1.5 3.4 2.8 7.5 2.8s7.5-1.3 7.5-2.8" />
+		</Svg>
+	);
+}
+
+export function PrinterIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M6 9V3h12v6" />
+			<rect x="4" y="9" width="16" height="8" rx="1.5" />
+			<path d="M6 14h12v7H6Z" />
+		</Svg>
+	);
+}
+
+export function CheckCircleIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<circle cx="12" cy="12" r="9" />
+			<path d="m8.5 12.3 2.4 2.4 4.6-5.2" />
+		</Svg>
+	);
+}
+
+export function CalendarIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<rect x="3.5" y="5" width="17" height="16" rx="2" />
+			<path d="M3.5 9.5h17M8 3v4M16 3v4" />
+		</Svg>
+	);
+}
+
+export function ChevronDownIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M6 9l6 6 6-6" />
+		</Svg>
+	);
+}
+
+export function MenuIcon(props: IconProps) {
+	return (
+		<Svg {...props}>
+			<path d="M3.5 6.5h17M3.5 12h17M3.5 17.5h17" />
+		</Svg>
+	);
+}

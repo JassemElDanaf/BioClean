@@ -62,7 +62,7 @@ export default function FinancialSummaryReport() {
 				<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
 			</div>
 
-			{loading || !summary ? (
+			{!summary ? (
 				<div>Loading...</div>
 			) : error ? (
 				<div style={{ color: "crimson" }}>{error}</div>
@@ -87,6 +87,18 @@ export default function FinancialSummaryReport() {
 								<Row label="Net Profit" value={summary.net_profit} bold highlight={summary.net_profit >= 0 ? "brand" : "danger"} />
 							</tbody>
 						</table>
+					</div>
+
+					<div style={{ background: "#fff", border: "1px solid var(--neutral-200)", borderRadius: 12, overflow: "hidden", marginTop: 16 }}>
+						<table style={{ width: "100%", borderCollapse: "collapse" }}>
+							<tbody>
+								<Row label="Inventory Purchases (cash out)" value={summary.purchases_total} />
+							</tbody>
+						</table>
+						<div style={{ padding: "0 16px 12px", fontSize: 12, color: "var(--neutral-500)" }}>
+							Cash spent restocking this period - not included in Net Profit above. A purchase only becomes Cost of Goods
+							Sold once the stock actually sells, so counting it here too would double it.
+						</div>
 					</div>
 				</>
 			)}

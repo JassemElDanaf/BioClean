@@ -46,7 +46,7 @@ export default function StockValuationReport() {
 		return Array.from(map.values()).sort((a, b) => b.value - a.value);
 	}, [items]);
 
-	if (loading) return <div>Loading stock valuation...</div>;
+	if (loading && items.length === 0) return <div>Loading stock valuation...</div>;
 	if (error) return <div style={{ color: "crimson" }}>Couldn't load stock valuation: {error}</div>;
 
 	return (

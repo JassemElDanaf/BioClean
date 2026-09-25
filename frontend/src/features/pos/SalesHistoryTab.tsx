@@ -2,7 +2,10 @@ import { useEffect, useState } from "react";
 import ActionsMenu from "../../components/ActionsMenu";
 import DateRangeFilter, { isoDate, todayIso, type DateRangePreset } from "../../components/DateRangeFilter";
 import Modal from "../../components/Modal";
+import Select from "../../components/Select";
+import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
+import { viewPdf } from "../../lib/pdf";
 import { createReturn, listReturns, listSales, printSaleReceipt, saleReceiptPdfUrl, salesExportCsvUrl, voidSale, type Return, type Sale, type SalesFilters } from "./api";
 import { useExchangeRate, usdToLbp } from "../../lib/currency";
 
@@ -153,7 +156,10 @@ export default function SalesHistoryTab() {
 			)}
 
 			<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", marginBottom: 16, flexWrap: "wrap", gap: 12 }}>
-				<h2 style={{ margin: 0 }}>Sales History ({total.toLocaleString()})</h2>
+				<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
+					<SidebarToggleButton />
+					<h2 style={{ margin: 0 }}>Sales History ({total.toLocaleString()})</h2>
+				</div>
 				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
 					<DateRangeFilter presets={PRESETS} value={filters} onChange={setFilters} />
 					<a href={salesExportCsvUrl(filters)} style={presetButtonStyle}>
@@ -193,8 +199,8 @@ export default function SalesHistoryTab() {
 								<td style={tdStyle}>
 									<ActionsMenu
 										actions={[
-											{ label: "View", onClick: () => setViewing(sale) },
-											{ label: "Download PDF", onClick: () => window.open(saleReceiptPdfUrl(sale.id), "_blank") },
+											{ label: "View Sale", onClick: () => setViewing(sale) },
+											{ label: "View PDF", onClick: () => viewPdf(saleReceiptPdfUrl(sale.id)) },
 											{ label: "Print Receipt", onClick: () => handlePrint(sale.id) },
 											...(!sale.voided ? [{ label: "Void", onClick: () => handleVoid(sale), danger: true }] : []),
 										]}
@@ -303,11 +309,16 @@ export default function SalesHistoryTab() {
 									)}
 								</div>
 								<div style={{ display: "flex", gap: 8, marginTop: 10 }}>
-									<select value={refundMethod} onChange={(e) => setRefundMethod(e.target.value)} style={{ padding: "6px 8px", borderRadius: 6, border: "1px solid var(--neutral-200)" }}>
-										<option value="cash">Cash</option>
-										<option value="card">Card</option>
-										<option value="store_credit">Store Credit</option>
-									</select>
+									<Select
+										value={refundMethod}
+										onChange={setRefundMethod}
+										style={{ width: 150 }}
+										options={[
+											{ value: "cash", label: "Cash" },
+											{ value: "card", label: "Card" },
+											{ value: "store_credit", label: "Store Credit" },
+										]}
+									/>
 									<input
 										type="text"
 										placeholder="Reason (optional)"
@@ -331,9 +342,13 @@ export default function SalesHistoryTab() {
 						{voidError && <div style={{ color: "crimson", fontSize: 13, marginTop: 10 }}>{voidError}</div>}
 						{printError && <div style={{ color: "crimson", fontSize: 13, marginTop: 10 }}>{printError}</div>}
 						<div style={{ display: "flex", gap: 8, marginTop: 14 }}>
-							<a href={saleReceiptPdfUrl(viewing.id)} target="_blank" rel="noreferrer" style={{ ...smallButtonStyle, flex: 1, textDecoration: "none", textAlign: "center" }}>
-								Download PDF
-							</a>
+							<button
+								type="button"
+								onClick={() => viewPdf(saleReceiptPdfUrl(viewing.id))}
+								style={{ ...smallButtonStyle, flex: 1 }}
+							>
+								View PDF
+							</button>
 							<button onClick={() => handlePrint(viewing.id)} disabled={printingId === viewing.id} style={{ ...smallButtonStyle, flex: 1 }}>
 								{printingId === viewing.id ? "Printing..." : "Print Receipt"}
 							</button>
