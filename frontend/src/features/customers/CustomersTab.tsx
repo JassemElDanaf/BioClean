@@ -59,8 +59,8 @@ export default function CustomersTab() {
 					<SidebarToggleButton />
 					<h2 style={{ margin: 0 }}>Customers ({visible.length})</h2>
 				</div>
-				<div style={{ display: "flex", gap: 8, alignItems: "center" }}>
-					<div style={{ position: "relative" }}>
+				<div style={{ display: "flex", gap: 8, alignItems: "center", flexWrap: "wrap" }}>
+					<div style={{ position: "relative", flex: "1 1 180px" }}>
 						<span style={{ position: "absolute", left: 12, top: "50%", transform: "translateY(-50%)", color: "var(--neutral-500)", pointerEvents: "none" }}>
 							<SearchIcon size={15} />
 						</span>
@@ -152,7 +152,9 @@ const searchInputStyle: React.CSSProperties = {
 	borderRadius: 8,
 	border: "1px solid var(--neutral-200)",
 	fontSize: 13,
-	width: 240,
+	width: "100%",
+	maxWidth: 240,
+	boxSizing: "border-box",
 };
 const primaryButtonStyle: React.CSSProperties = {
 	padding: "8px 14px",

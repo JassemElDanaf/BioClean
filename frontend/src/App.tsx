@@ -138,7 +138,7 @@ export default function App() {
 			<div style={{ display: "flex", height: "100vh" }}>
 				<Sidebar tabs={TABS} flyoutTabs={[REPORTS_TAB, SETTINGS_TAB]} />
 				<div style={{ flex: 1, display: "flex", flexDirection: "column", minWidth: 0 }}>
-					<main style={{ flex: 1, padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0 }}>
+					<main className="app-main" style={{ flex: 1, padding: 24, overflowY: "auto", overflowX: "hidden", minWidth: 0 }}>
 					<Routes>
 						<Route path="/" element={<Navigate to="/dashboard" replace />} />
 						{ALL_TABS.map((tab) => (

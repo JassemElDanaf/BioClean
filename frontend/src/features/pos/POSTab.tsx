@@ -218,7 +218,7 @@ export default function POSTab() {
 	if (loadError) return <div style={{ color: "crimson" }}>Couldn't load products: {loadError}</div>;
 
 	return (
-		<div style={{ display: "flex", gap: 24, height: "100%" }}>
+		<div className="pos-layout" style={{ display: "flex", gap: 24, height: "100%" }}>
 			{scanError && (
 				<div
 					style={{
@@ -240,7 +240,7 @@ export default function POSTab() {
 					{scanError}
 				</div>
 			)}
-			<div style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
+			<div className="pos-products" style={{ flex: 1, minWidth: 0, display: "flex", flexDirection: "column" }}>
 				<div style={{ display: "flex", alignItems: "center", gap: 10, marginBottom: 14 }}>
 					<SidebarToggleButton />
 					<div style={{ position: "relative", flex: 1 }}>
@@ -264,7 +264,7 @@ export default function POSTab() {
 					))}
 				</div>
 
-				<div style={{ flex: 1, overflowY: "auto", paddingTop: 8 }}>
+				<div className="pos-products-scroll" style={{ flex: 1, overflowY: "auto", paddingTop: 8 }}>
 					<div style={{ display: "grid", gridTemplateColumns: "repeat(auto-fill, minmax(190px, 1fr))", gap: 16 }}>
 						{visibleItems.map((item) => (
 							<ProductCard key={item.id} item={item} inCartQty={cartQtyFor(item.id)} onAdd={() => addToCart(item)} />
@@ -274,7 +274,7 @@ export default function POSTab() {
 				</div>
 			</div>
 
-			<div style={{ width: 360, flexShrink: 0, background: "#fff", borderRadius: 12, border: "1px solid var(--neutral-200)", display: "flex", flexDirection: "column" }}>
+			<div className="pos-cart" style={{ width: 360, flexShrink: 0, background: "#fff", borderRadius: 12, border: "1px solid var(--neutral-200)", display: "flex", flexDirection: "column" }}>
 				<div style={{ padding: "18px 20px 14px" }}>
 					<h2 style={{ margin: 0, fontSize: 16 }}>Current Sale</h2>
 					<div style={{ fontSize: 13, color: "var(--neutral-500)" }}>{cart.length} item{cart.length === 1 ? "" : "s"}</div>

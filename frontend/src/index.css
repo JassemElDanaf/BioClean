@@ -58,3 +58,104 @@ input[type="number"]::-webkit-outer-spin-button {
 input[type="number"] {
 	-moz-appearance: textfield;
 }
+
+/* Below this width the sidebar can no longer share space with page
+   content the way it does on desktop (see Sidebar.tsx) - it switches to
+   an overlay drawer instead: fixed over the page with a dimming backdrop
+   behind it, rather than a flex sibling that squeezes main content down
+   to an unusable sliver. main's own left inset (App.tsx) also collapses
+   to 0 at this width for the same reason - it exists only to make room
+   for the desktop sidebar's permanent slot.
+
+   Base (desktop-hidden) rule must come BEFORE the @media override below -
+   two rules of equal specificity resolve by source order, so a later
+   unconditional rule would always beat an earlier media-scoped one
+   regardless of which one the media query actually matches. */
+.sidebar-backdrop {
+	display: none;
+	position: fixed;
+	inset: 0;
+	background: rgba(0, 0, 0, 0.35);
+	z-index: 400;
+}
+@media (max-width: 900px) {
+	.sidebar-aside {
+		position: fixed !important;
+		top: 0;
+		left: 0;
+		height: 100dvh !important;
+		z-index: 500;
+		box-shadow: 2px 0 24px rgba(0, 0, 0, 0.18);
+	}
+	.sidebar-backdrop {
+		display: block;
+	}
+	.app-main {
+		padding: 16px !important;
+	}
+}
+
+/* Shared responsive grid utilities - a fixed column count (or a bare
+   "1fr 1fr") reads fine on desktop but forces content into unreadably
+   narrow slivers on a phone; these collapse to fewer columns (then one)
+   as the viewport shrinks. Used in place of an inline gridTemplateColumns
+   wherever a page's layout needs to survive a phone-width viewport -
+   inline styles can't carry a media query themselves. */
+.grid-kpi-6 {
+	display: grid;
+	gap: 12px;
+	grid-template-columns: repeat(6, minmax(0, 1fr));
+}
+@media (max-width: 1100px) {
+	.grid-kpi-6 {
+		grid-template-columns: repeat(3, minmax(0, 1fr));
+	}
+}
+@media (max-width: 560px) {
+	.grid-kpi-6 {
+		grid-template-columns: repeat(2, minmax(0, 1fr));
+	}
+}
+
+.grid-2col {
+	display: grid;
+	gap: 16px;
+}
+@media (min-width: 769px) {
+	.grid-2col {
+		grid-template-columns: 1fr 1fr;
+	}
+}
+.grid-2col-wide {
+	display: grid;
+	gap: 16px;
+}
+@media (min-width: 769px) {
+	.grid-2col-wide {
+		grid-template-columns: 2fr 1fr;
+	}
+}
+
+/* POS checkout (POSTab.tsx) - product grid and the current-sale cart sit
+   side by side on desktop, each independently scrollable within a fixed
+   height:100% row. A phone screen has no room for that side by side (the
+   360px cart alone exceeds most phones' full width), so below the
+   breakpoint they stack instead: the whole page scrolls normally (no
+   more height:100%/overflow:auto on either half) and the cart takes full
+   width under the product grid rather than a fixed 360px column. */
+@media (max-width: 900px) {
+	.pos-layout {
+		flex-direction: column;
+		height: auto !important;
+	}
+	.pos-products {
+		flex: none !important;
+	}
+	.pos-products-scroll {
+		flex: none !important;
+		overflow-y: visible !important;
+	}
+	.pos-cart {
+		width: 100% !important;
+	}
+}

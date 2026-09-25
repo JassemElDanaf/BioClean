@@ -150,7 +150,7 @@ export default function DashboardTab() {
 				<div>Loading dashboard...</div>
 			) : (
 				<>
-					<div style={{ display: "grid", gridTemplateColumns: "repeat(6, minmax(0, 1fr))", gap: 12, marginBottom: 20 }}>
+					<div className="grid-kpi-6" style={{ marginBottom: 20 }}>
 						<KpiCard
 							icon={ReceiptIcon}
 							label="Total Revenue"
@@ -198,12 +198,12 @@ export default function DashboardTab() {
 						/>
 					</div>
 
-					<div style={{ display: "grid", gridTemplateColumns: "2fr 1fr", gap: 16, marginBottom: 16, alignItems: "stretch" }}>
+					<div className="grid-2col-wide" style={{ marginBottom: 16, alignItems: "stretch" }}>
 						<RevenueTrendCard trend={insights.trend} />
 						<PaymentBreakdownCard rows={insights.payment_breakdown} />
 					</div>
 
-					<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, marginBottom: 16, alignItems: "stretch" }}>
+					<div className="grid-2col" style={{ marginBottom: 16, alignItems: "stretch" }}>
 						<TopProductsCard products={insights.top_products} />
 						<LowStockCard items={lowStockItems} />
 					</div>

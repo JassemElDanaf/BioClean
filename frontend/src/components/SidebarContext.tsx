@@ -12,7 +12,16 @@ const SidebarContext = createContext<SidebarContextValue | null>(null);
 // inline in each page's own heading row (see SidebarToggleButton) instead
 // of the sidebar owning a single, separately-positioned button.
 export function SidebarProvider({ children }: { children: ReactNode }) {
-	const [collapsed, setCollapsed] = useState(() => localStorage.getItem("bioclean-sidebar-collapsed") === "true");
+	const [collapsed, setCollapsed] = useState(() => {
+		const stored = localStorage.getItem("bioclean-sidebar-collapsed");
+		if (stored !== null) return stored === "true";
+		// No stored preference yet (first visit) - default to collapsed on a
+		// phone-width screen, where the sidebar renders as an overlay (see
+		// index.css) rather than a permanent desktop column, so someone
+		// opening the app on their phone lands on the page they came for
+		// instead of the nav drawer covering it.
+		return window.innerWidth <= 900;
+	});
 
 	useEffect(() => {
 		localStorage.setItem("bioclean-sidebar-collapsed", String(collapsed));

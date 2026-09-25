@@ -120,8 +120,13 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 
 	return (
 		<>
+			{/* Mobile only (see index.css) - dims the page behind the drawer and
+			    gives a large, obvious tap target to dismiss it, on top of the
+			    existing click-outside handler above. */}
+			{!collapsed && <div className="sidebar-backdrop" onClick={() => setCollapsed(true)} />}
 			<aside
 				ref={asideRef}
+				className="sidebar-aside"
 				style={{
 					width: collapsed ? 0 : width,
 					flexShrink: 0,

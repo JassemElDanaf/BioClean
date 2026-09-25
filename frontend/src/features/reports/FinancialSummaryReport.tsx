@@ -123,7 +123,7 @@ export default function FinancialSummaryReport() {
 						/>
 					</div>
 
-					<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 16, alignItems: "start" }}>
+					<div className="grid-2col" style={{ alignItems: "start" }}>
 						<div>
 							<SectionCard title="Profit &amp; Loss">
 								<Row icon={ReceiptIcon} label="POS Sales (net of returns)" value={summary.sales_revenue} />
