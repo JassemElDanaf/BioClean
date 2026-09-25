@@ -314,6 +314,7 @@ function PrinterCard() {
 						options={[
 							{ value: "none", label: "Not connected" },
 							{ value: "windows", label: "USB (Windows printer)" },
+							{ value: "usb", label: "USB (direct, no driver)" },
 							{ value: "network", label: "Network (Ethernet/WiFi)" },
 						]}
 					/>
@@ -322,6 +323,11 @@ function PrinterCard() {
 				{connectionType === "windows" && (
 					<SettingRow label="Printer name" description="Leave blank to use the system default.">
 						<input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="e.g. POS-80" style={inputStyle} />
+					</SettingRow>
+				)}
+				{connectionType === "usb" && (
+					<SettingRow label="Vendor:Product ID" description="Hex IDs from the printer's USB properties, e.g. 0483:5743 for a Xprinter XP-T80A. On Windows: Device Manager > the printer > Properties > Details > Hardware Ids. On Linux/Mac: run `lsusb` with the printer plugged in and powered on.">
+						<input value={target} onChange={(e) => setTarget(e.target.value)} placeholder="0483:5743" style={inputStyle} />
 					</SettingRow>
 				)}
 				{connectionType === "network" && (

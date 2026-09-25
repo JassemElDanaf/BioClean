@@ -61,7 +61,7 @@ TEMPLATE = Template(
 	<div class="header">
 		<img class="logo" src="{{ logo }}" alt="BioClean">
 		<div class="meta">
-			<div class="doc-no">RECEIPT - SALE #{{ sale.id }}</div>
+			<div class="doc-no">RECEIPT - SALE-{{ sale.id }}</div>
 			<div>{{ created_at }}</div>
 			<div class="status">{{ 'VOIDED' if sale.voided else 'PAID' }}</div>
 		</div>
@@ -108,7 +108,7 @@ TEMPLATE = Template(
 		</table>
 	</div>
 
-	<div class="footer"><span class="label">Payment Method:</span> {{ sale.payment_method.title() }}</div>
+	<div class="footer"><span class="label">Payment Method:</span> {{ sale.payment_method.title() }}{% if sale.paid_currency == 'LBP' %} (Paid in LBP){% endif %}</div>
 	{% if lbp_total %}
 	<div class="footer">Converted at {{ '{:,.0f}'.format(sale.exchange_rate) }} LBP/$ (the rate in effect on the sale date)</div>
 	{% endif %}

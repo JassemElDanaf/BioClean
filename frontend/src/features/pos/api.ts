@@ -9,6 +9,9 @@ export interface CheckoutLine {
 export interface CheckoutPayload {
 	lines: CheckoutLine[];
 	payment_method: string;
+	// Purely informational - see backend Sale.paid_currency's docstring.
+	// Every amount is still computed/stored in USD regardless.
+	paid_currency?: string;
 	amount_tendered?: number;
 	idempotency_key?: string;
 }
@@ -34,6 +37,7 @@ export interface Sale {
 	exchange_rate: number;
 	total: number;
 	payment_method: string;
+	paid_currency: string;
 	amount_tendered: number | null;
 	change_due: number | null;
 	voided: boolean;

@@ -26,6 +26,7 @@ def _to_out(sale: models.Sale) -> schemas.SaleOut:
 		exchange_rate=sale.exchange_rate,
 		total=sale.total,
 		payment_method=sale.payment_method,
+		paid_currency=sale.paid_currency,
 		amount_tendered=sale.amount_tendered,
 		change_due=change_due,
 		voided=sale.voided,
@@ -85,6 +86,7 @@ def checkout(payload: schemas.CheckoutRequest, db: Session = Depends(get_db)):
 		amount_tendered=payload.amount_tendered,
 		warehouse_id=payload.warehouse_id,
 		idempotency_key=payload.idempotency_key,
+		paid_currency=payload.paid_currency,
 	)
 	return _to_out(sale)
 

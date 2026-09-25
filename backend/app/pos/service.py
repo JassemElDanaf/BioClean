@@ -24,6 +24,7 @@ def checkout(
 	amount_tendered: float | None,
 	warehouse_id: int | None,
 	idempotency_key: str | None = None,
+	paid_currency: str = "USD",
 ) -> Sale:
 	"""Nothing commits until every line has successfully cleared
 	adjust_stock() - an insufficient-stock 409 on line 3 of 5 has to roll
@@ -50,7 +51,7 @@ def checkout(
 
 	warehouse_id = warehouse_id or items_service.get_default_warehouse(db).id
 
-	sale = Sale(warehouse_id=warehouse_id, total=0, payment_method=payment_method, amount_tendered=amount_tendered, idempotency_key=idempotency_key)
+	sale = Sale(warehouse_id=warehouse_id, total=0, payment_method=payment_method, paid_currency=paid_currency, amount_tendered=amount_tendered, idempotency_key=idempotency_key)
 	db.add(sale)
 	db.flush()  # assigns sale.id, used below as the StockMovement.reference
 

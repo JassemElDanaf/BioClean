@@ -32,6 +32,12 @@ class Sale(Base):
 	# moved to since.
 	exchange_rate = Column(Numeric(12, 2), nullable=False, default=0)
 	payment_method = Column(String, nullable=False, default="cash")
+	# Which currency the customer actually handed over cash/paid in - purely
+	# informational (a receipt/history note: "Paid in LBP"). `total` and
+	# every other amount on this Sale are always stored in USD regardless;
+	# this never changes any math, it only records what happened at the
+	# register so it can be shown back later.
+	paid_currency = Column(String, nullable=False, default="USD")
 	# Only meaningful for a cash sale (lets the register show change due) -
 	# left null for card/other payment methods.
 	amount_tendered = Column(Numeric(12, 2), nullable=True)

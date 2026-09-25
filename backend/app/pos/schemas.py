@@ -16,6 +16,9 @@ class CheckoutRequest(BaseModel):
 	lines: list[SaleLineIn] = Field(min_length=1)
 	payment_method: str = "cash"
 	amount_tendered: float | None = Field(default=None, ge=0)
+	# Purely informational - see Sale.paid_currency. Every amount here is
+	# still USD regardless of this value.
+	paid_currency: str = "USD"
 	warehouse_id: int | None = None  # defaults to the default warehouse
 	# One UUID per checkout attempt from the frontend - see Sale.
 	# idempotency_key's docstring. Optional so direct API/test callers
@@ -47,6 +50,7 @@ class SaleOut(BaseModel):
 	exchange_rate: float
 	total: float
 	payment_method: str
+	paid_currency: str
 	amount_tendered: float | None = None
 	change_due: float | None = None  # computed by the router, not a DB column
 	voided: bool

@@ -6,7 +6,7 @@ import { QtyInput } from "../../components/DocumentCartPanel";
 import StockBadge from "../../components/StockBadge";
 import { ApiError } from "../../lib/api";
 import { useBarcodeScanner } from "../../lib/useBarcodeScanner";
-import { useTaxRate } from "../../lib/currency";
+import { useExchangeRate, useTaxRate, usdToLbp } from "../../lib/currency";
 import { pickProductEmoji } from "../../lib/productEmoji";
 import { listItems } from "../inventory/api";
 import type { Item } from "../inventory/types";
@@ -49,6 +49,11 @@ export default function POSTab() {
 	const [category, setCategory] = useState("All");
 	const [cart, setCart] = useState<CartLine[]>([]);
 	const [discount, setDiscount] = useState(0);
+	// Purely a display/recording toggle - every amount is still computed
+	// and stored in USD (see Sale.paid_currency's own docstring); this only
+	// changes what the cashier reads on screen and what note ends up on
+	// the receipt, for a customer handing over LBP cash instead of USD.
+	const [displayCurrency, setDisplayCurrency] = useState<"USD" | "LBP">("USD");
 	const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
 	const [amountTendered, setAmountTendered] = useState<number | "">("");
 	const [checkingOut, setCheckingOut] = useState(false);
@@ -89,6 +94,15 @@ export default function POSTab() {
 	}, [items, search, category]);
 
 	const taxRate = useTaxRate();
+	const exchangeRate = useExchangeRate();
+	// Formats a USD amount for display, converting to LBP when the cashier
+	// has toggled to it - never touches the underlying number itself
+	// (that's always computed/stored in USD, see displayCurrency's
+	// docstring above).
+	function money(amountUsd: number): string {
+		if (displayCurrency === "USD" || !exchangeRate) return `$${amountUsd.toFixed(2)}`;
+		return `${usdToLbp(amountUsd, exchangeRate.rate, exchangeRate.rounding).toLocaleString()} LBP`;
+	}
 	const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.qty * line.unitPrice, 0), [cart]);
 	const discountAmount = Math.min(Math.max(discount, 0), subtotal);
 	const taxableAmount = subtotal - discountAmount;
@@ -155,6 +169,7 @@ export default function POSTab() {
 		setDiscount(0);
 		setAmountTendered("");
 		setPaymentMethod("cash");
+		setDisplayCurrency("USD");
 		setCheckoutError(null);
 		setCompletedSale(null);
 		setPrintError(null);
@@ -198,6 +213,7 @@ export default function POSTab() {
 					unit_price: round2(line.unitPrice * ratio),
 				})),
 				payment_method: paymentMethod,
+				paid_currency: displayCurrency,
 				amount_tendered: paymentMethod === "cash" && amountTendered !== "" ? amountTendered : undefined,
 				idempotency_key: checkoutKeyRef.current,
 			});
@@ -293,7 +309,7 @@ export default function POSTab() {
 								<div key={line.item.id} style={{ display: "flex", alignItems: "center", gap: 10, padding: "10px 0", borderBottom: "1px solid var(--neutral-100)" }}>
 									<div style={{ flex: 1, minWidth: 0 }}>
 										<div style={{ fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{line.item.item_name}</div>
-										<div style={{ fontSize: 12, color: "var(--neutral-500)" }}>${line.unitPrice.toFixed(2)} each</div>
+										<div style={{ fontSize: 12, color: "var(--neutral-500)" }}>{money(line.unitPrice)} each</div>
 									</div>
 									<div style={{ display: "flex", alignItems: "center", gap: 6 }}>
 										<button onClick={() => changeQty(line.item.id, -1)} style={qtyButtonStyle}>
@@ -304,7 +320,7 @@ export default function POSTab() {
 											<PlusIcon size={13} />
 										</button>
 									</div>
-									<div style={{ fontSize: 13, fontWeight: 700, width: 52, textAlign: "right" }}>${(line.qty * line.unitPrice).toFixed(2)}</div>
+									<div style={{ fontSize: 13, fontWeight: 700, width: 52, textAlign: "right" }}>{money(line.qty * line.unitPrice)}</div>
 									<button onClick={() => removeLine(line.item.id)} style={{ ...qtyButtonStyle, color: "crimson", border: "none" }}>
 										<TrashIcon size={15} />
 									</button>
@@ -315,7 +331,7 @@ export default function POSTab() {
 				</div>
 
 				<div style={{ padding: "16px 20px", borderTop: "1px solid var(--neutral-200)" }}>
-					<SummaryRow label="Subtotal" value={`$${subtotal.toFixed(2)}`} />
+					<SummaryRow label="Subtotal" value={money(subtotal)} />
 					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "6px 0" }}>
 						<span style={{ fontSize: 13, color: "var(--neutral-500)" }}>Discount</span>
 						<input
@@ -328,7 +344,7 @@ export default function POSTab() {
 							style={discountInputStyle}
 						/>
 					</div>
-					{taxRate > 0 && <SummaryRow label={`Tax (${taxRate}%)`} value={`$${taxAmount.toFixed(2)}`} />}
+					{taxRate > 0 && <SummaryRow label={`Tax (${taxRate}%)`} value={money(taxAmount)} />}
 
 					{/* Above Total, not below it - Total should always sit the same
 					    fixed distance above the (always-present) payment buttons, not
@@ -351,14 +367,27 @@ export default function POSTab() {
 					{paymentMethod === "cash" && amountTendered !== "" && (
 						<div style={{ display: "flex", justifyContent: "space-between", fontSize: 13, padding: "6px 0", color: changeDue !== null && changeDue < 0 ? "crimson" : "var(--neutral-900)" }}>
 							<span>Change Due</span>
-							<span style={{ fontWeight: 700 }}>${(changeDue ?? 0).toFixed(2)}</span>
+							<span style={{ fontWeight: 700 }}>{money(changeDue ?? 0)}</span>
 						</div>
 					)}
 
-					<div style={{ display: "flex", justifyContent: "space-between", padding: "10px 0 4px", borderTop: "1px solid var(--neutral-200)", marginTop: 6 }}>
+					<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center", padding: "10px 0 4px", borderTop: "1px solid var(--neutral-200)", marginTop: 6 }}>
 						<span style={{ fontSize: 15, fontWeight: 700 }}>Total</span>
-						<span style={{ fontSize: 18, fontWeight: 800 }}>${total.toFixed(2)}</span>
+						<div style={{ display: "flex", alignItems: "center", gap: 8 }}>
+							<span style={{ fontSize: 18, fontWeight: 800 }}>{money(total)}</span>
+							{exchangeRate && (
+								<div style={{ display: "flex", border: "1px solid var(--neutral-200)", borderRadius: 6, overflow: "hidden" }}>
+									<button type="button" onClick={() => setDisplayCurrency("USD")} style={currencyToggleStyle(displayCurrency === "USD")}>
+										USD
+									</button>
+									<button type="button" onClick={() => setDisplayCurrency("LBP")} style={currencyToggleStyle(displayCurrency === "LBP")}>
+										LBP
+									</button>
+								</div>
+							)}
+						</div>
 					</div>
+					{displayCurrency === "LBP" && <div style={{ fontSize: 12, color: "var(--neutral-500)", textAlign: "right", marginBottom: 4 }}>Customer paying in LBP - a note will show on the receipt</div>}
 
 					<div style={{ display: "flex", gap: 8, margin: "10px 0 10px" }}>
 						{PAYMENT_METHODS.map((m) => (
@@ -381,16 +410,19 @@ export default function POSTab() {
 				{completedSale && (
 					<div style={{ display: "grid", gap: 10 }}>
 						<div style={{ fontSize: 14 }}>
-							Sale <strong>#{completedSale.id}</strong> - {completedSale.lines.length} item{completedSale.lines.length === 1 ? "" : "s"}
+							Sale <strong>SALE-{completedSale.id}</strong> - {completedSale.lines.length} item{completedSale.lines.length === 1 ? "" : "s"}
 						</div>
-						<SummaryRow label="Subtotal" value={`$${completedSale.subtotal.toFixed(2)}`} />
-						{completedSale.tax_amount > 0 && <SummaryRow label="Tax" value={`$${completedSale.tax_amount.toFixed(2)}`} />}
-						<SummaryRow label="Total" value={`$${completedSale.total.toFixed(2)}`} bold />
+						<SummaryRow label="Subtotal" value={money(completedSale.subtotal)} />
+						{completedSale.tax_amount > 0 && <SummaryRow label="Tax" value={money(completedSale.tax_amount)} />}
+						<SummaryRow label="Total" value={money(completedSale.total)} bold />
 						{completedSale.payment_method === "cash" && completedSale.amount_tendered != null && (
 							<>
-								<SummaryRow label="Tendered" value={`$${completedSale.amount_tendered.toFixed(2)}`} />
-								<SummaryRow label="Change Due" value={`$${(completedSale.change_due ?? 0).toFixed(2)}`} />
+								<SummaryRow label="Tendered" value={money(completedSale.amount_tendered)} />
+								<SummaryRow label="Change Due" value={money(completedSale.change_due ?? 0)} />
 							</>
+						)}
+						{completedSale.paid_currency === "LBP" && (
+							<div style={{ fontSize: 12, color: "var(--neutral-500)" }}>(Paid in LBP)</div>
 						)}
 						{printError && <div style={{ color: "crimson", fontSize: 13 }}>{printError}</div>}
 						<div style={{ display: "flex", gap: 8, marginTop: 8 }}>
@@ -488,6 +520,17 @@ const addButtonDisabledStyle: React.CSSProperties = {
 	color: "var(--neutral-500)",
 	cursor: "not-allowed",
 };
+function currencyToggleStyle(active: boolean): React.CSSProperties {
+	return {
+		padding: "4px 8px",
+		border: "none",
+		background: active ? "var(--brand)" : "#fff",
+		color: active ? "#fff" : "var(--neutral-500)",
+		fontSize: 11,
+		fontWeight: 700,
+		cursor: "pointer",
+	};
+}
 const qtyButtonStyle: React.CSSProperties = {
 	width: 24,
 	height: 24,

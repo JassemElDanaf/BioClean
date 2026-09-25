@@ -44,9 +44,12 @@ class AppSettings(Base):
 	# How receipts actually get to paper. "none" (default - no printer
 	# configured yet), "windows" (a printer already installed in Windows,
 	# addressed by its exact Windows printer name - the standard way to
-	# talk to a USB thermal printer without touching raw USB/libusb),
-	# "network" (an Ethernet/WiFi thermal printer, addressed as host:port,
-	# almost always port 9100). See pos/escpos_receipt.py.
+	# talk to a USB thermal printer without touching raw USB/libusb), "usb"
+	# (direct USB, no OS driver in between - for when the backend itself
+	# runs on the machine the printer is plugged into; addressed as
+	# "vendor_id:product_id" in hex, e.g. "0483:5743"), "network" (an
+	# Ethernet/WiFi thermal printer, addressed as host:port, almost always
+	# port 9100). See pos/escpos_receipt.py.
 	printer_connection_type = Column(String, nullable=False, default="none")
 	printer_target = Column(String, nullable=True)
 	updated_at = Column(DateTime(timezone=True), server_default=func.now(), onupdate=func.now())

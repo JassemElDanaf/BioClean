@@ -31,6 +31,26 @@ def test_checkout_deducts_stock_and_records_lines(client):
 	assert item_after["stock_qty"] == 7
 
 
+def test_checkout_defaults_paid_currency_to_usd(client):
+	item = make_item(client)
+
+	res = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 1}], "payment_method": "cash", "amount_tendered": 20})
+	assert res.status_code == 201, res.text
+	assert res.json()["paid_currency"] == "USD"
+
+
+def test_checkout_records_paid_currency_when_customer_pays_in_lbp(client):
+	item = make_item(client)
+
+	res = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 1}], "payment_method": "cash", "paid_currency": "LBP"})
+	assert res.status_code == 201, res.text
+	sale = res.json()
+	assert sale["paid_currency"] == "LBP"
+	# Every stored amount is still USD regardless of what was handed over -
+	# paid_currency is a note, never a unit conversion.
+	assert sale["total"] == 5.0
+
+
 def test_checkout_defaults_price_to_retail_and_allows_override(client):
 	item = make_item(client)
 	res = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 1, "unit_price": 4.0}]})

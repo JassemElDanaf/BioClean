@@ -14,6 +14,7 @@ def make_sale(**overrides):
 		total=15.75,
 		tax_amount=0.75,
 		payment_method="cash",
+		paid_currency="USD",
 		amount_tendered=20.0,
 		exchange_rate=0,
 		lines=[
@@ -40,7 +41,7 @@ def test_render_receipt_includes_readable_text():
 	render_receipt(printer, make_sale())
 	text = printer.output.decode("ascii", errors="ignore")
 
-	assert "Sale #42" in text
+	assert "SALE-42" in text
 	assert "BioMax 3L" in text
 	assert "BioChlore 1L" in text
 	assert "15.75" in text  # total
@@ -83,6 +84,22 @@ def test_render_receipt_omits_lbp_total_when_sale_predates_exchange_rate_trackin
 	assert "LBP" not in text
 
 
+def test_render_receipt_notes_when_paid_in_lbp():
+	printer = Dummy()
+	render_receipt(printer, make_sale(paid_currency="LBP"))
+	text = printer.output.decode("ascii", errors="ignore")
+
+	assert "Paid in LBP" in text
+
+
+def test_render_receipt_omits_lbp_note_when_paid_in_usd():
+	printer = Dummy()
+	render_receipt(printer, make_sale(paid_currency="USD"))
+	text = printer.output.decode("ascii", errors="ignore")
+
+	assert "Paid in LBP" not in text
+
+
 def test_get_printer_rejects_unconfigured():
 	with pytest.raises(PrinterError):
 		_get_printer("none", None)
@@ -91,3 +108,13 @@ def test_get_printer_rejects_unconfigured():
 def test_get_printer_rejects_network_without_target():
 	with pytest.raises(PrinterError):
 		_get_printer("network", None)
+
+
+def test_get_printer_rejects_usb_without_target():
+	with pytest.raises(PrinterError):
+		_get_printer("usb", None)
+
+
+def test_get_printer_rejects_usb_with_non_hex_target():
+	with pytest.raises(PrinterError):
+		_get_printer("usb", "not-hex")

@@ -9,6 +9,7 @@ import SidebarToggleButton from "../../components/SidebarToggleButton";
 import { ApiError } from "../../lib/api";
 import { viewPdf } from "../../lib/pdf";
 import { listItems, listSuppliers } from "../inventory/api";
+import SuppliersModal from "../inventory/SuppliersModal";
 import type { Item, Supplier } from "../inventory/types";
 import { cancelPurchaseOrder, createPurchaseOrder, listPurchaseOrders, markPurchaseOrderPaid, purchaseOrderPdfUrl, receivePurchaseOrder, type PurchaseOrder } from "./api";
 
@@ -68,6 +69,11 @@ export default function PurchasesTab() {
 	const [dateFilters, setDateFilters] = useState<DateRangeValue>(() => PRESETS[0].range());
 	const [formOpen, setFormOpen] = useState(false);
 	const [highlightId, setHighlightId] = useState<number | null>(null);
+	const [suppliersOpen, setSuppliersOpen] = useState(false);
+
+	function reloadSuppliers() {
+		return listSuppliers().then(setSuppliers);
+	}
 
 	function reloadAll() {
 		setLoading(true);
@@ -203,7 +209,12 @@ export default function PurchasesTab() {
 							onAction={handleCreate}
 							header={
 								<label style={fieldLabelStyle}>
-									Supplier
+									<div style={{ display: "flex", justifyContent: "space-between", alignItems: "center" }}>
+										<span>Supplier</span>
+										<button type="button" onClick={() => setSuppliersOpen(true)} style={addSupplierButtonStyle}>
+											+ Add Supplier
+										</button>
+									</div>
 									<Select
 										value={supplierId}
 										onChange={setSupplierId}
@@ -236,6 +247,7 @@ export default function PurchasesTab() {
 								<th style={thStyle}>PO #</th>
 								<th style={thStyle}>Date</th>
 								<th style={thStyle}>Supplier</th>
+								<th style={thStyle}>Phone</th>
 								<th style={{ ...thStyle, textAlign: "right" }}>Total</th>
 								<th style={thStyle}>Status</th>
 								<th style={thStyle}>Payment</th>
@@ -255,6 +267,7 @@ export default function PurchasesTab() {
 									<td style={tdStyle}>#{po.id}</td>
 									<td style={tdStyle}>{new Date(po.created_at).toLocaleDateString()}</td>
 									<td style={tdStyle}>{po.supplier_name ?? "-"}</td>
+									<td style={tdStyle}>{suppliers.find((s) => s.id === po.supplier_id)?.phone || "-"}</td>
 									<td style={{ ...tdStyle, textAlign: "right", fontWeight: 700 }}>${po.total.toFixed(2)}</td>
 									<td style={tdStyle}>
 										<span style={statusPill(po.status)}>{po.status}</span>
@@ -285,7 +298,7 @@ export default function PurchasesTab() {
 							))}
 							{orders.length === 0 && (
 								<tr>
-									<td colSpan={7} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
+									<td colSpan={8} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
 										No purchase orders yet.
 									</td>
 								</tr>
@@ -349,6 +362,8 @@ export default function PurchasesTab() {
 					</div>
 				)}
 			</Modal>
+
+			<SuppliersModal open={suppliersOpen} onClose={() => setSuppliersOpen(false)} suppliers={suppliers} onChanged={reloadSuppliers} />
 		</div>
 	);
 }
@@ -387,4 +402,14 @@ const smallButtonStyle: React.CSSProperties = {
 	fontSize: 12,
 	fontWeight: 600,
 	cursor: "pointer",
+};
+const addSupplierButtonStyle: React.CSSProperties = {
+	padding: "2px 0",
+	border: "none",
+	background: "none",
+	fontSize: 12,
+	fontWeight: 700,
+	color: "var(--brand)",
+	cursor: "pointer",
+	fontFamily: "inherit",
 };

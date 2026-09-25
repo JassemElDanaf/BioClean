@@ -40,5 +40,5 @@ class PrinterSettingsOut(BaseModel):
 
 
 class PrinterSettingsUpdate(BaseModel):
-	printer_connection_type: str = Field(pattern="^(none|windows|network)$")
+	printer_connection_type: str = Field(pattern="^(none|windows|usb|network)$")
 	printer_target: str | None = None

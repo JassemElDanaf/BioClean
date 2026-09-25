@@ -54,6 +54,29 @@ def _get_printer(connection_type: str, target: str | None):
 
 		host, _, port = target.partition(":")
 		return Network(host, int(port) if port else 9100, timeout=10)
+	if connection_type == "usb":
+		# Direct USB (no OS driver/print queue in between) - what's needed
+		# when the backend itself runs on the machine the printer is
+		# physically plugged into (Linux/Mac), as opposed to "windows"
+		# above which goes through a printer already installed in Windows.
+		# target is "vendor_id:product_id" in hex, e.g. "0483:5743" for a
+		# Xprinter XP-T80A - found via `lsusb` (Linux) or Device Manager
+		# (Windows, under the printer's Properties > Details > Hardware
+		# Ids) with the printer plugged in and powered on.
+		if not target:
+			raise PrinterError("No USB vendor/product ID configured - set one in Settings")
+		vendor_id_str, _, product_id_str = target.partition(":")
+		try:
+			vendor_id = int(vendor_id_str, 16)
+			product_id = int(product_id_str, 16)
+		except ValueError:
+			raise PrinterError('USB printer target must be "vendor_id:product_id" in hex, e.g. "0483:5743"')
+		from escpos.printer import Usb
+
+		try:
+			return Usb(vendor_id, product_id, 0)
+		except Exception as exc:
+			raise PrinterError(f"Couldn't open USB printer {target} - check it's plugged in, powered on, and this machine has permission to access it ({exc})")
 	raise PrinterError("No receipt printer configured - set one in Settings")
 
 
@@ -80,15 +103,25 @@ def render_receipt(printer, sale: Sale, lbp_rounding: float = 1) -> None:
 	printer.set(align="center", bold=True)
 	printer.textln("BioClean Chemicals, LB")
 	printer.set(align="center", bold=False)
-	printer.textln(f"Sale #{sale.id}")
+	# Same "SALE-{id}" reference already used everywhere else this sale is
+	# referenced (Financial Summary, revenue reports, stock movement
+	# ledger - see reports/revenue_service.py and pos/service.py) - not a
+	# separate display-only counter, so a customer's paper receipt always
+	# matches the exact same number the rest of the app shows for it.
+	printer.textln(f"Receipt No. SALE-{sale.id}")
 	printer.textln(to_local(sale.created_at).strftime("%B %d, %Y %I:%M %p"))
+	printer.textln(f"Currency: USD   Payment: {sale.payment_method.title()}")
 	printer.textln("-" * LINE_WIDTH)
 
-	printer.set(align="left")
+	printer.set(align="left", bold=True)
+	printer.text(_row("Item", "Qty   Price    Total"))
+	printer.set(bold=False)
+	printer.textln("-" * LINE_WIDTH)
 	subtotal = float(sale.total) - float(sale.tax_amount)
 	for line in sale.lines:
 		printer.textln(str(line.item_name)[:LINE_WIDTH])
-		printer.text(_row(f"  {line.qty:g} x ${float(line.unit_price):.2f}", f"${float(line.line_total):.2f}"))
+		qty_price = f"{line.qty:g} x ${float(line.unit_price):.2f}"
+		printer.text(_row(f"  {qty_price}", f"${float(line.line_total):.2f}"))
 	printer.textln("-" * LINE_WIDTH)
 
 	printer.text(_row("Subtotal", f"${subtotal:.2f}"))
@@ -115,6 +148,12 @@ def render_receipt(printer, sale: Sale, lbp_rounding: float = 1) -> None:
 		printer.text(_row("Change", f"${change:.2f}"))
 	else:
 		printer.textln(f"Paid by {sale.payment_method}")
+
+	# Every amount above is always USD regardless - this is purely a note
+	# for whoever's reading the receipt, matching what was actually handed
+	# over at the register (see Sale.paid_currency's own docstring).
+	if sale.paid_currency == "LBP":
+		printer.textln("(Paid in LBP)")
 
 	printer.ln(2)
 	printer.set(align="center")

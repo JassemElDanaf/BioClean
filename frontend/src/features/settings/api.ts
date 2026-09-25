@@ -37,7 +37,7 @@ export function getExchangeRateHistory(): Promise<ExchangeRateHistoryEntry[]> {
 	return apiRequest("/settings/exchange-rate/history");
 }
 
-export type PrinterConnectionType = "none" | "windows" | "network";
+export type PrinterConnectionType = "none" | "windows" | "usb" | "network";
 
 export interface PrinterSettings {
 	printer_connection_type: PrinterConnectionType;
