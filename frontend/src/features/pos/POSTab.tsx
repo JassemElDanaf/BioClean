@@ -49,6 +49,14 @@ export default function POSTab() {
 	const [category, setCategory] = useState("All");
 	const [cart, setCart] = useState<CartLine[]>([]);
 	const [discount, setDiscount] = useState(0);
+	// What's actually typed into the Discount box, kept separate from
+	// `discount` (always USD) itself - converting straight back through
+	// toDisplayAmount() on every keystroke would round-trip through LBP's
+	// nearest-1000 rounding and snap anything typed (e.g. "1") right back
+	// to "0" mid-keystroke, making the box look unusable. This only gets
+	// re-synced from `discount` when the currency toggle itself changes
+	// (see the effect below), never while the cashier is actively typing.
+	const [discountDraft, setDiscountDraft] = useState("");
 	// Purely a display/recording toggle - every amount is still computed
 	// and stored in USD (see Sale.paid_currency's own docstring); this only
 	// changes what the cashier reads on screen and what note ends up on
@@ -56,6 +64,8 @@ export default function POSTab() {
 	const [displayCurrency, setDisplayCurrency] = useState<"USD" | "LBP">("USD");
 	const [paymentMethod, setPaymentMethod] = useState<PaymentMethod>("cash");
 	const [amountTendered, setAmountTendered] = useState<number | "">("");
+	// Same reasoning as discountDraft above.
+	const [tenderedDraft, setTenderedDraft] = useState("");
 	const [checkingOut, setCheckingOut] = useState(false);
 	const [checkoutError, setCheckoutError] = useState<string | null>(null);
 	const [completedSale, setCompletedSale] = useState<Sale | null>(null);
@@ -116,6 +126,14 @@ export default function POSTab() {
 		if (displayCurrency === "USD" || !exchangeRate) return typed;
 		return round2(typed / exchangeRate.rate);
 	}
+	// Re-derive what the two draft boxes show only when the toggle itself
+	// flips - never while the cashier is mid-keystroke (see discountDraft's
+	// docstring above for why that distinction matters).
+	useEffect(() => {
+		setDiscountDraft(discount ? String(toDisplayAmount(discount)) : "");
+		setTenderedDraft(amountTendered === "" ? "" : String(toDisplayAmount(amountTendered)));
+		// eslint-disable-next-line react-hooks/exhaustive-deps
+	}, [displayCurrency]);
 	const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.qty * line.unitPrice, 0), [cart]);
 	const discountAmount = Math.min(Math.max(discount, 0), subtotal);
 	const taxableAmount = subtotal - discountAmount;
@@ -180,7 +198,9 @@ export default function POSTab() {
 	function resetForNextSale() {
 		setCart([]);
 		setDiscount(0);
+		setDiscountDraft("");
 		setAmountTendered("");
+		setTenderedDraft("");
 		setPaymentMethod("cash");
 		setDisplayCurrency("USD");
 		setCheckoutError(null);
@@ -351,8 +371,11 @@ export default function POSTab() {
 							type="number"
 							min={0}
 							step={displayCurrency === "LBP" ? exchangeRate?.rounding || 1 : 0.01}
-							value={discount ? toDisplayAmount(discount) : ""}
-							onChange={(e) => setDiscount(e.target.value === "" ? 0 : fromDisplayAmount(Number(e.target.value)))}
+							value={discountDraft}
+							onChange={(e) => {
+								setDiscountDraft(e.target.value);
+								setDiscount(e.target.value === "" ? 0 : fromDisplayAmount(Number(e.target.value)));
+							}}
 							placeholder={displayCurrency === "LBP" ? "0" : "0.00"}
 							style={discountInputStyle}
 						/>
@@ -370,8 +393,11 @@ export default function POSTab() {
 								type="number"
 								min={0}
 								step={displayCurrency === "LBP" ? exchangeRate?.rounding || 1 : 0.01}
-								value={amountTendered === "" ? "" : toDisplayAmount(amountTendered)}
-								onChange={(e) => setAmountTendered(e.target.value === "" ? "" : fromDisplayAmount(Number(e.target.value)))}
+								value={tenderedDraft}
+								onChange={(e) => {
+									setTenderedDraft(e.target.value);
+									setAmountTendered(e.target.value === "" ? "" : fromDisplayAmount(Number(e.target.value)));
+								}}
 								placeholder={displayCurrency === "LBP" ? "0" : "0.00"}
 								style={discountInputStyle}
 							/>
