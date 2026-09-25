@@ -160,7 +160,15 @@ export default function ItemFormModal({
 					</Field>
 				</div>
 
-				<Field label="Photo">
+				{/* A plain div, not the shared Field <label> wrapper below - a
+				    <label> forwards a click ANYWHERE inside it (including the
+				    empty whitespace to the right of "Choose File") to its
+				    descendant form control, which for a file input means
+				    clicking blank space in this row was silently opening the
+				    file picker. Only the file input's own native button
+				    should do that. */}
+				<div style={{ display: "grid", gap: 4, fontSize: 13, color: "var(--neutral-500)" }}>
+					Photo
 					<div style={{ display: "flex", alignItems: "center", gap: 10 }}>
 						{photoSrc ? (
 							<img src={photoSrc} alt="" style={{ width: 40, height: 40, objectFit: "cover", borderRadius: 6 }} />
@@ -173,7 +181,7 @@ export default function ItemFormModal({
 						{uploading && <span style={{ fontSize: 12, color: "var(--neutral-500)" }}>Uploading...</span>}
 					</div>
 					{imageError && <div style={{ color: "crimson", fontSize: 13, marginTop: 4 }}>{imageError}</div>}
-				</Field>
+				</div>
 
 				<div style={gridStyle(3)}>
 					<Field label="Cost Price">
