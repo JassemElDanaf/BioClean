@@ -71,7 +71,7 @@ def export_customers_csv(db: Session = Depends(get_db)):
 			"Customer": c.name,
 			"Phone": c.phone or "",
 			"Email": c.email or "",
-			"Wholesale": "Yes" if c.is_wholesale else "No",
+			"Customer Type": "Wholesale Customer" if c.is_wholesale else "Retail Customer",
 			"Balance Owed (AR)": balances.get(c.id, 0.0),
 		}
 		for c in customers

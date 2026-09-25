@@ -55,10 +55,18 @@ export default function CustomerFormModal({
 				<Field label="Address">
 					<input value={values.address} onChange={(e) => field("address", e.target.value)} style={inputStyle} />
 				</Field>
-				<label style={{ display: "flex", alignItems: "center", gap: 8, fontSize: 13, marginTop: 4 }}>
-					<input type="checkbox" checked={values.is_wholesale} onChange={(e) => field("is_wholesale", e.target.checked)} />
-					Wholesale customer (invoices default to wholesale pricing)
-				</label>
+				<Field label="Customer Type">
+					<div style={{ display: "flex", gap: 16, marginTop: 2 }}>
+						<label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--neutral-900)", fontWeight: 400 }}>
+							<input type="radio" name="customer-type" checked={!values.is_wholesale} onChange={() => field("is_wholesale", false)} />
+							Retail Customer
+						</label>
+						<label style={{ display: "flex", alignItems: "center", gap: 6, fontSize: 13, color: "var(--neutral-900)", fontWeight: 400 }}>
+							<input type="radio" name="customer-type" checked={values.is_wholesale} onChange={() => field("is_wholesale", true)} />
+							Wholesale Customer
+						</label>
+					</div>
+				</Field>
 
 				{error && <div style={{ color: "crimson", fontSize: 13 }}>{error}</div>}
 

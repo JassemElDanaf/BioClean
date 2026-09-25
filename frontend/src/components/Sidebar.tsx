@@ -42,21 +42,21 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 	const asideRef = useRef<HTMLElement>(null);
 	const location = useLocation();
 
-	// Standard single-open accordion: groups start collapsed, except
-	// whichever one contains the page you're already on (so landing on
-	// /invoicing, say, doesn't hide the very group that shows where you
-	// are). Opening a group closes whichever other one was open - only
-	// ever one expanded at a time - and opening the already-expanded one
-	// collapses it. At most one label is ever stored, not a per-group map.
-	const [expandedGroup, setExpandedGroup] = useState<string | null>(() => {
+	// Groups start collapsed, except whichever one contains the page you're
+	// already on (so landing on /invoicing, say, doesn't hide the very
+	// group that shows where you are). Independently toggleable - opening
+	// one has no effect on any other, confirmed over the single-open
+	// accordion this briefly was: several groups can stay open side by side.
+	const [expandedGroups, setExpandedGroups] = useState<Record<string, boolean>>(() => {
+		const initial: Record<string, boolean> = {};
 		for (const item of tabs) {
-			if (isGroup(item) && item.children.some((child) => location.pathname === `/${child.path}`)) return item.label;
+			if (isGroup(item) && item.children.some((child) => location.pathname === `/${child.path}`)) initial[item.label] = true;
 		}
-		return null;
+		return initial;
 	});
 
 	function toggleGroup(label: string) {
-		setExpandedGroup((prev) => (prev === label ? null : label));
+		setExpandedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
 	}
 
 	useEffect(() => {
@@ -145,7 +145,7 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 			<nav style={{ flex: 1, overflowY: "auto", overflowX: "hidden", padding: "4px 12px" }}>
 				{tabs.map((item) => {
 					if (isGroup(item)) {
-						const expanded = expandedGroup === item.label;
+						const expanded = !!expandedGroups[item.label];
 						const groupActive = item.children.some((child) => location.pathname === `/${child.path}`);
 						return (
 							<div key={item.label}>
