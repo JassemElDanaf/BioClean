@@ -142,7 +142,11 @@ def void_sale(db: Session, sale: Sale) -> Sale:
 		restore_qty = float(line.qty) - already_returned_qty
 		if restore_qty <= 0:
 			continue
+		if line.item_id is None:
+			continue
 		item = db.get(Item, line.item_id)
+		if item is None:
+			continue
 		items_service.adjust_stock(
 			db,
 			item,
@@ -201,16 +205,17 @@ def create_return(
 				detail=f"Can't return {qty:g} of '{sale_line.item_name}' - only {remaining:g} remaining (of {float(sale_line.qty):g} sold)",
 			)
 
-		item = db.get(Item, sale_line.item_id)
-		items_service.adjust_stock(
-			db,
-			item,
-			qty,
-			warehouse_id=sale.warehouse_id,
-			reason="return",
-			reference=f"SALE-{sale.id}-return-{ret.id}",
-			commit=False,
-		)
+		item = db.get(Item, sale_line.item_id) if sale_line.item_id is not None else None
+		if item is not None:
+			items_service.adjust_stock(
+				db,
+				item,
+				qty,
+				warehouse_id=sale.warehouse_id,
+				reason="return",
+				reference=f"SALE-{sale.id}-return-{ret.id}",
+				commit=False,
+			)
 
 		line_refund = qty * float(sale_line.unit_price)
 		db.add(

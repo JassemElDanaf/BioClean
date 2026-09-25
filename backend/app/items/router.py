@@ -7,6 +7,7 @@ from sqlalchemy.orm import Session, joinedload
 
 from ..core.database import get_db
 from ..shared.export import to_csv_response
+from ..shared.timezone import to_local
 from . import models, schemas, service
 
 # Uploaded item photos land here, served back out via the /uploads static
@@ -70,9 +71,10 @@ def list_items(
 	q: str | None = None,
 	category: str | None = None,
 	low_stock: bool = False,
+	out_of_stock: bool = False,
 	db: Session = Depends(get_db),
 ):
-	items, total = service.list_items(db, skip=skip, limit=limit, q=q, category=category, low_stock=low_stock)
+	items, total = service.list_items(db, skip=skip, limit=limit, q=q, category=category, low_stock=low_stock, out_of_stock=out_of_stock)
 	# Lets the frontend tell "everything fits on one page" apart from
 	# "there are more than `limit` matches" without a second request.
 	response.headers["X-Total-Count"] = str(total)
@@ -128,7 +130,7 @@ def _parse_date_range(from_date: str | None, to_date: str | None) -> tuple[datet
 
 def _audit_export_row(m: models.StockMovement) -> dict:
 	values = [
-		m.created_at.strftime("%Y-%m-%d %H:%M"),
+		to_local(m.created_at).strftime("%Y-%m-%d %H:%M"),
 		m.item.barcode,
 		m.item.item_name,
 		m.warehouse.name,

@@ -32,14 +32,17 @@ def list_items(
 	q: str | None = None,
 	category: str | None = None,
 	low_stock: bool = False,
+	out_of_stock: bool = False,
 ) -> tuple[list[Item], int]:
-	"""Backs GET /items. `low_stock` is evaluated in Python (stock is a sum
-	across ItemStock rows, not a column SQL can filter on directly) - fine
-	at this app's real scale (one store's catalogue), same tradeoff
-	total_stock() already makes. `q`/`category` filter in SQL since those
-	are plain column matches. Returns (page, total_matching) so the caller
-	can tell the difference between "20 items exist" and "20 of 500 items
-	fit on this page"."""
+	"""Backs GET /items. `low_stock`/`out_of_stock` are evaluated in Python
+	(stock is a sum across ItemStock rows, not a column SQL can filter on
+	directly) - fine at this app's real scale (one store's catalogue), same
+	tradeoff total_stock() already makes. `q`/`category` filter in SQL
+	since those are plain column matches. Returns (page, total_matching) so
+	the caller can tell the difference between "20 items exist" and "20 of
+	500 items fit on this page". The two stock filters are mutually
+	exclusive by construction (a caller sets at most one), matching how
+	frontend StockBadge treats Low Stock/Out of Stock as exclusive states."""
 	# Counted and filtered *before* the joinedload below is applied -
 	# joinedload turns stock_levels into a LEFT JOIN, and counting or
 	# slicing on top of that would double-count/paginate wrong the moment
@@ -54,12 +57,12 @@ def list_items(
 	with_relations = base.options(joinedload(Item.stock_levels)).order_by(Item.item_name)
 
 	if low_stock:
-		# Excludes zero-stock items on purpose - "Low Stock" and "Out of
-		# Stock" are mutually exclusive everywhere else this app shows them
-		# (see frontend StockBadge), so this filter has to agree or the
-		# Inventory "Low Stock" toggle would silently include items that are
-		# actually shown with an "Out of Stock" badge.
+		# Excludes zero-stock items on purpose - see docstring above.
 		matching = [item for item in with_relations.all() if 0 < total_stock(item) <= float(item.reorder_level)]
+		return matching[skip : skip + limit], len(matching)
+
+	if out_of_stock:
+		matching = [item for item in with_relations.all() if total_stock(item) <= 0]
 		return matching[skip : skip + limit], len(matching)
 
 	total = base.count()
@@ -110,6 +113,7 @@ def adjust_stock(
 	reference: str | None = None,
 	unit_cost: float | None = None,
 	commit: bool = True,
+	allow_negative: bool = False,
 ) -> ItemStock:
 	"""Applies `delta` to an item's quantity in the given warehouse (or the
 	default one). Negative delta = sold/removed (POS sale, invoice line,
@@ -128,13 +132,20 @@ def adjust_stock(
 	`commit=False` lets a caller (item creation, and later any multi-step
 	workflow like a purchase receipt) fold this into its own transaction
 	instead of committing twice - so a failure partway through can't leave
-	an item that exists with no matching stock record."""
+	an item that exists with no matching stock record.
+
+	`allow_negative` exists for exactly one caller today
+	(invoicing/service.py:mark_paid()): marking an invoice paid is a
+	financial fact - the money was collected - and can never be blocked by
+	the shelf count being wrong or stale. Everywhere else (a POS sale, a
+	purchase order) the physical constraint is real (you can't hand over
+	what isn't there) and stays enforced."""
 	warehouse_id = warehouse_id or get_default_warehouse(db).id
 	level = _get_or_create_stock_row(db, item.id, warehouse_id)
 
 	qty_before = float(level.qty)
 	new_qty = qty_before + delta
-	if new_qty < 0:
+	if new_qty < 0 and not allow_negative:
 		raise HTTPException(
 			status_code=409,
 			detail=f"Not enough stock for '{item.barcode}': {level.qty} on hand, {abs(delta)} requested.",

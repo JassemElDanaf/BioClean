@@ -22,6 +22,7 @@ import os
 from PIL import Image
 
 from ..settings.models import AppSettings
+from ..shared.timezone import to_local
 from .models import Sale
 
 _ASSETS_DIR = os.path.join(os.path.dirname(os.path.dirname(__file__)), "assets")
@@ -79,7 +80,7 @@ def render_receipt(printer, sale: Sale) -> None:
 	printer.textln("BioClean Chemicals, LB")
 	printer.set(align="center", bold=False)
 	printer.textln(f"Sale #{sale.id}")
-	printer.textln(sale.created_at.strftime("%B %d, %Y %I:%M %p"))
+	printer.textln(to_local(sale.created_at).strftime("%B %d, %Y %I:%M %p"))
 	printer.textln("-" * LINE_WIDTH)
 
 	printer.set(align="left")

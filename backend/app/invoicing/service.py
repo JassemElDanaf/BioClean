@@ -84,11 +84,18 @@ def create_invoice(
 
 def mark_paid(db: Session, invoice: Invoice) -> Invoice:
 	"""The moment stock actually moves and the invoice actually becomes
-	revenue - see module docstring. Same atomicity pattern as checkout()/
-	create_invoice() used to have: adjust_stock(commit=False) on every line
-	plus one commit at the end, so a 409 on line 3 of 5 (insufficient
-	stock) leaves the whole invoice still "unpaid" and no line's stock
-	touched at all, not half-paid."""
+	revenue - see module docstring.
+
+	Marking an invoice paid is a financial fact (the money was collected)
+	and must never be blocked by the shelf count being wrong or stale -
+	allow_negative=True means a mismatched inventory count shows up as
+	negative stock (a real, visible signal something needs recounting)
+	instead of silently refusing to record that the invoice was paid.
+
+	Any line whose item was since deleted (see items/service.py:
+	delete_item()) has nothing left to adjust - its own stock/movement
+	history went with it - so it's skipped rather than crashing on a null
+	item."""
 	from datetime import datetime, timezone
 
 	if invoice.status == "voided":
@@ -97,7 +104,11 @@ def mark_paid(db: Session, invoice: Invoice) -> Invoice:
 		raise HTTPException(status_code=409, detail="Invoice is already marked paid")
 
 	for line in invoice.lines:
+		if line.item_id is None:
+			continue
 		item = db.get(Item, line.item_id)
+		if item is None:
+			continue
 		items_service.adjust_stock(
 			db,
 			item,
@@ -106,6 +117,7 @@ def mark_paid(db: Session, invoice: Invoice) -> Invoice:
 			reason="invoice",
 			reference=f"INV-{invoice.id}",
 			commit=False,
+			allow_negative=True,
 		)
 
 	invoice.status = "paid"
@@ -127,7 +139,11 @@ def void_invoice(db: Session, invoice: Invoice) -> Invoice:
 
 	if invoice.status == "paid":
 		for line in invoice.lines:
+			if line.item_id is None:
+				continue
 			item = db.get(Item, line.item_id)
+			if item is None:
+				continue
 			items_service.adjust_stock(
 				db,
 				item,

@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..core.database import get_db
 from ..shared.concurrency import lock_row
 from ..shared.export import to_csv_response
+from ..shared.timezone import to_local
 from . import models, schemas, service
 
 router = APIRouter(prefix="/invoices", tags=["invoicing"])
@@ -75,7 +76,7 @@ def export_invoices_csv(from_date: str | None = None, to_date: str | None = None
 	rows = [
 		{
 			"Invoice #": inv.id,
-			"Date": inv.created_at.strftime("%Y-%m-%d %H:%M"),
+			"Date": to_local(inv.created_at).strftime("%Y-%m-%d %H:%M"),
 			"Customer": inv.customer_name or "",
 			"Item": line.item_name,
 			"Barcode": line.barcode,

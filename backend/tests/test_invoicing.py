@@ -56,10 +56,7 @@ def test_invoice_creation_allows_more_than_current_stock(client):
 	assert res.status_code == 201, res.text
 
 
-def test_mark_paid_deducts_stock_and_is_atomic_on_insufficient_stock(client):
-	"""The insufficient-stock atomicity guarantee that used to apply to
-	invoice *creation* now applies to mark-paid instead, since that's the
-	moment stock actually moves - see invoicing/service.py."""
+def test_mark_paid_deducts_stock(client):
 	item = make_item(client, initial_stock_qty=5)
 	invoice = client.post(INVOICES_URL, json={"lines": [{"item_id": item["id"], "qty": 3}]}).json()
 
@@ -68,16 +65,35 @@ def test_mark_paid_deducts_stock_and_is_atomic_on_insufficient_stock(client):
 	assert res.json()["status"] == "paid"
 	assert client.get(f"{ITEMS_URL}/{item['id']}").json()["stock_qty"] == 2
 
+
+def test_mark_paid_never_blocked_by_insufficient_stock(client):
+	"""Marking an invoice paid is a financial fact (the money was
+	collected) - it must never be refused because the shelf count is short
+	or stale, unlike a POS checkout where the physical constraint is real.
+	A mismatch instead shows up as negative stock, a visible signal to go
+	recount/restock, not a blocked payment."""
+	scarce = make_item(client, barcode="SCARCE-1", initial_stock_qty=1)
+	invoice = client.post(INVOICES_URL, json={"lines": [{"item_id": scarce["id"], "qty": 5}]}).json()
+
+	res = client.post(f"{INVOICES_URL}/{invoice['id']}/mark-paid")
+	assert res.status_code == 200, res.text
+	assert res.json()["status"] == "paid"
+	assert client.get(f"{ITEMS_URL}/{scarce['id']}").json()["stock_qty"] == -4
+
+
+def test_mark_paid_deducts_every_line_even_when_some_go_negative(client):
+	"""Multi-line mark-paid isn't atomic-on-stock any more (there's nothing
+	to abort for) - every line's stock still deducts, negative or not."""
 	plenty = make_item(client, barcode="PLENTY-1", initial_stock_qty=100)
 	scarce = make_item(client, barcode="SCARCE-1", initial_stock_qty=1)
-	multi_line_invoice = client.post(
+	invoice = client.post(
 		INVOICES_URL, json={"lines": [{"item_id": plenty["id"], "qty": 5}, {"item_id": scarce["id"], "qty": 5}]}
 	).json()
 
-	res = client.post(f"{INVOICES_URL}/{multi_line_invoice['id']}/mark-paid")
-	assert res.status_code == 409
-	assert client.get(f"{ITEMS_URL}/{plenty['id']}").json()["stock_qty"] == 100
-	assert client.get(f"{INVOICES_URL}/{multi_line_invoice['id']}").json()["status"] == "unpaid"
+	res = client.post(f"{INVOICES_URL}/{invoice['id']}/mark-paid")
+	assert res.status_code == 200
+	assert client.get(f"{ITEMS_URL}/{plenty['id']}").json()["stock_qty"] == 95
+	assert client.get(f"{ITEMS_URL}/{scarce['id']}").json()["stock_qty"] == -4
 
 
 def test_mark_paid_lifecycle(client):
@@ -90,6 +106,19 @@ def test_mark_paid_lifecycle(client):
 
 	# Can't mark paid twice.
 	assert client.post(f"{INVOICES_URL}/{invoice['id']}/mark-paid").status_code == 409
+
+
+def test_mark_paid_after_item_deleted_does_not_crash(client):
+	"""The item's own stock history goes away when it's deleted (see
+	items/service.py:delete_item()) - nothing left to deduct against, so
+	this line is just skipped rather than crashing on a null item."""
+	item = make_item(client, initial_stock_qty=10)
+	invoice = client.post(INVOICES_URL, json={"lines": [{"item_id": item["id"], "qty": 2}]}).json()
+	client.delete(f"{ITEMS_URL}/{item['id']}")
+
+	res = client.post(f"{INVOICES_URL}/{invoice['id']}/mark-paid")
+	assert res.status_code == 200
+	assert res.json()["status"] == "paid"
 
 
 def test_void_unpaid_invoice_does_not_touch_stock(client):
@@ -117,6 +146,17 @@ def test_void_restores_stock_even_after_paid(client):
 	# Can't mark a voided invoice paid, and can't void it twice.
 	assert client.post(f"{INVOICES_URL}/{invoice['id']}/mark-paid").status_code == 409
 	assert client.post(f"{INVOICES_URL}/{invoice['id']}/void").status_code == 409
+
+
+def test_void_paid_invoice_after_item_deleted_does_not_crash(client):
+	item = make_item(client, initial_stock_qty=10)
+	invoice = client.post(INVOICES_URL, json={"lines": [{"item_id": item["id"], "qty": 4}]}).json()
+	client.post(f"{INVOICES_URL}/{invoice['id']}/mark-paid")
+	client.delete(f"{ITEMS_URL}/{item['id']}")
+
+	res = client.post(f"{INVOICES_URL}/{invoice['id']}/void")
+	assert res.status_code == 200
+	assert res.json()["status"] == "voided"
 
 
 def test_pdf_is_generated_cached_and_invalidated_on_status_change(client):

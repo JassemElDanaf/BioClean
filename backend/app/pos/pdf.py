@@ -7,6 +7,7 @@ Subtotal/Tax/Total breakdown plus tendered/change for cash sales."""
 from jinja2 import Template
 
 from ..shared.pdf import get_logo_data_uri, render_html_to_pdf
+from ..shared.timezone import to_local
 from .models import Sale
 
 TEMPLATE = Template(
@@ -116,7 +117,7 @@ def generate_sale_receipt_pdf(sale: Sale) -> bytes:
 	html = TEMPLATE.render(
 		sale=sale,
 		logo=get_logo_data_uri(),
-		created_at=sale.created_at.strftime("%B %d, %Y %I:%M %p"),
+		created_at=to_local(sale.created_at).strftime("%B %d, %Y %I:%M %p"),
 		subtotal=subtotal,
 		change_due=change_due,
 	)

@@ -113,6 +113,18 @@ def test_low_stock_filter_excludes_out_of_stock(client):
 	assert out_of_stock["id"] not in [i["id"] for i in res.json()]
 
 
+def test_out_of_stock_filter(client):
+	zero = make_item(client, barcode="ZERO-1", initial_stock_qty=0, reorder_level=5)
+	low = make_item(client, barcode="LOW-1", initial_stock_qty=1, reorder_level=5)
+	high = make_item(client, barcode="HIGH-1", initial_stock_qty=50, reorder_level=5)
+
+	res = client.get(f"{ITEMS_URL}?out_of_stock=true")
+	ids = [i["id"] for i in res.json()]
+	assert zero["id"] in ids
+	assert low["id"] not in ids
+	assert high["id"] not in ids
+
+
 def test_search_filter_matches_name_and_barcode(client):
 	make_item(client, item_name="Blue Widget", barcode="BLU-1")
 	make_item(client, item_name="Red Gadget", barcode="RED-1")

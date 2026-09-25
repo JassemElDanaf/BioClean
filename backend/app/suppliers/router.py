@@ -1,5 +1,5 @@
-from fastapi import APIRouter, Depends, HTTPException
-from sqlalchemy import func
+from fastapi import APIRouter, Depends, HTTPException, Query
+from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
 from ..core.database import get_db
@@ -38,8 +38,12 @@ def _balance_for(db: Session, supplier_id: int) -> float:
 
 
 @router.get("", response_model=list[schemas.SupplierOut])
-def list_suppliers(db: Session = Depends(get_db)):
-	suppliers = db.query(models.Supplier).order_by(models.Supplier.name).all()
+def list_suppliers(q: str | None = None, limit: int = Query(default=500, le=2000), db: Session = Depends(get_db)):
+	query = db.query(models.Supplier)
+	if q:
+		like = f"%{q}%"
+		query = query.filter(or_(models.Supplier.name.ilike(like), models.Supplier.phone.ilike(like)))
+	suppliers = query.order_by(models.Supplier.name).limit(limit).all()
 	balances = _all_balances(db)
 	return [_to_out(s, balances.get(s.id, 0.0)) for s in suppliers]
 

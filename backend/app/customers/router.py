@@ -1,4 +1,4 @@
-from fastapi import APIRouter, Depends, HTTPException
+from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import func, or_
 from sqlalchemy.orm import Session
 
@@ -44,12 +44,17 @@ def _balance_for(db: Session, customer_id: int) -> float:
 
 
 @router.get("", response_model=list[schemas.CustomerOut])
-def list_customers(q: str | None = None, db: Session = Depends(get_db)):
+def list_customers(q: str | None = None, limit: int = Query(default=500, le=2000), db: Session = Depends(get_db)):
+	"""Unpaginated by design for the common case (a real store's customer
+	list fits comfortably in one response), but capped via `limit` so a
+	picker doing live server-side search (see CustomerPicker.tsx) never
+	pulls more than it can usefully show, and the endpoint stays bounded
+	no matter how large the table eventually grows."""
 	query = db.query(models.Customer)
 	if q:
 		like = f"%{q}%"
 		query = query.filter(or_(models.Customer.name.ilike(like), models.Customer.phone.ilike(like)))
-	customers = query.order_by(models.Customer.name).all()
+	customers = query.order_by(models.Customer.name).limit(limit).all()
 	balances = _all_balances(db)
 	return [_to_out(c, balances.get(c.id, 0.0)) for c in customers]
 

@@ -7,6 +7,7 @@ date and no "paid" concept - only draft/sent/accepted/expired/converted."""
 from jinja2 import Template
 
 from ..shared.pdf import get_logo_data_uri, render_html_to_pdf
+from ..shared.timezone import to_local
 from .models import Quotation
 
 STATUS_COLOR = {
@@ -71,7 +72,7 @@ TEMPLATE = Template(
 		<div class="meta">
 			<div class="doc-no">QUOTATION #{{ quotation.id }}</div>
 			<div>{{ created_at }}</div>
-			<div class="status">{{ quotation.status.upper() }}</div>
+			{% if quotation.status != "draft" %}<div class="status">{{ quotation.status.upper() }}</div>{% endif %}
 		</div>
 	</div>
 
@@ -135,7 +136,7 @@ def generate_quotation_pdf(quotation: Quotation) -> bytes:
 		customer=quotation.customer,
 		logo=get_logo_data_uri(),
 		status_color=STATUS_COLOR.get(quotation.status, "#212121"),
-		created_at=quotation.created_at.strftime("%B %d, %Y"),
+		created_at=to_local(quotation.created_at).strftime("%B %d, %Y"),
 		valid_until=quotation.valid_until.strftime("%B %d, %Y") if quotation.valid_until else None,
 	)
 	return render_html_to_pdf(html)

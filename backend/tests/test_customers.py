@@ -9,6 +9,13 @@ def make_item(client, **overrides):
 	return client.post(ITEMS_URL, json=payload).json()
 
 
+def test_list_customers_respects_limit(client):
+	for i in range(5):
+		client.post(CUSTOMERS_URL, json={"name": f"Customer {i}"})
+	res = client.get(f"{CUSTOMERS_URL}?limit=3")
+	assert len(res.json()) == 3
+
+
 def test_create_and_list_customer(client):
 	res = client.post(CUSTOMERS_URL, json={"name": "Acme Hotel", "is_wholesale": True})
 	assert res.status_code == 201

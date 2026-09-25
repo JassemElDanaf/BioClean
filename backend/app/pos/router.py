@@ -6,6 +6,7 @@ from sqlalchemy.orm import Session, joinedload
 from ..core.database import get_db
 from ..shared.concurrency import lock_row
 from ..shared.export import to_csv_response
+from ..shared.timezone import to_local
 from . import models, schemas, service
 
 router = APIRouter(prefix="/pos", tags=["pos"])
@@ -61,7 +62,7 @@ def _parse_date_range(from_date: str | None, to_date: str | None) -> tuple[datet
 def _export_rows(sale: models.Sale) -> list[dict]:
 	return [
 		{
-			"Date": sale.created_at.strftime("%Y-%m-%d %H:%M"),
+			"Date": to_local(sale.created_at).strftime("%Y-%m-%d %H:%M"),
 			"Sale #": sale.id,
 			"Item": line.item_name,
 			"Barcode": line.barcode,

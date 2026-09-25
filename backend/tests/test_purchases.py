@@ -64,6 +64,21 @@ def test_receive_adds_stock_and_updates_cost_price(client):
 	assert updated_item["cost_price"] == 2.5
 
 
+def test_receive_after_item_deleted_does_not_crash(client):
+	"""The item's own stock history goes away when it's deleted (see
+	items/service.py:delete_item()) - nothing left to receive stock
+	against, so this line is just skipped rather than crashing on a null
+	item."""
+	item = make_item(client)
+	supplier = make_supplier(client)
+	po = client.post(PURCHASES_URL, json={"supplier_id": supplier["id"], "lines": [{"item_id": item["id"], "qty": 5}]}).json()
+	client.delete(f"{ITEMS_URL}/{item['id']}")
+
+	res = client.post(f"{PURCHASES_URL}/{po['id']}/receive")
+	assert res.status_code == 200
+	assert res.json()["status"] == "received"
+
+
 def test_receive_twice_is_rejected(client):
 	item = make_item(client)
 	supplier = make_supplier(client)

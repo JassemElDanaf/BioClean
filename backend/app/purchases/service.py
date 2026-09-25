@@ -55,7 +55,11 @@ def receive_purchase_order(db: Session, po: PurchaseOrder) -> PurchaseOrder:
 		raise HTTPException(status_code=409, detail=f"Purchase order is '{po.status}', not pending - can't receive it")
 
 	for line in po.lines:
+		if line.item_id is None:
+			continue
 		item = db.get(Item, line.item_id)
+		if item is None:
+			continue
 		items_service.adjust_stock(
 			db,
 			item,

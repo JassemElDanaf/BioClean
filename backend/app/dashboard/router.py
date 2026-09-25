@@ -21,3 +21,9 @@ def _parse_date_range(from_date: str | None, to_date: str | None) -> tuple[datet
 def get_dashboard_summary(from_date: str | None = None, to_date: str | None = None, db: Session = Depends(get_db)):
 	start, end = _parse_date_range(from_date, to_date)
 	return service.get_summary(db, start, end)
+
+
+@router.get("/insights", response_model=schemas.DashboardInsights)
+def get_dashboard_insights(from_date: str | None = None, to_date: str | None = None, db: Session = Depends(get_db)):
+	start, end = _parse_date_range(from_date, to_date)
+	return service.get_insights(db, start, end)

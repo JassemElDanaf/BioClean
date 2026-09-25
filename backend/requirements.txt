@@ -10,6 +10,12 @@ jinja2==3.1.6
 playwright==1.61.0
 python-escpos==3.1
 pillow==12.3.0
+# Windows has no built-in IANA time zone database, so zoneinfo.ZoneInfo(
+# "Asia/Beirut") (see shared/timezone.py - every stored timestamp is UTC,
+# converted to Beirut local time before it's shown to a human) would raise
+# ZoneInfoNotFoundError without this. A no-op on platforms that already
+# ship the database.
+tzdata==2026.1
 # Only needed for the "windows" printer connection type (talks to a
 # thermal receipt printer already installed as a Windows printer) - the
 # marker keeps `pip install` working on a non-Windows dev machine, which

@@ -160,6 +160,20 @@ def test_partial_return_restores_stock_and_updates_sale(client):
 	assert sale_after["returned_total"] == 10.0
 
 
+def test_return_after_item_deleted_does_not_crash(client):
+	"""The item's own stock history goes away when it's deleted (see
+	items/service.py:delete_item()) - nothing left to restore stock
+	against, but the refund itself must still be recorded."""
+	item = make_item(client, initial_stock_qty=10)
+	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 5}]}).json()
+	sale_line_id = sale["lines"][0]["id"]
+	client.delete(f"{ITEMS_URL}/{item['id']}")
+
+	res = client.post(f"{SALES_URL}/{sale['id']}/return", json={"lines": [{"sale_line_id": sale_line_id, "qty": 2}]})
+	assert res.status_code == 201, res.text
+	assert res.json()["total_refund"] == 10.0
+
+
 def test_return_cannot_exceed_remaining_quantity(client):
 	item = make_item(client, initial_stock_qty=10)
 	sale = client.post(SALES_URL, json={"lines": [{"item_id": item["id"], "qty": 3}]}).json()
