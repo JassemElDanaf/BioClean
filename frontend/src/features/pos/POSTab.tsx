@@ -103,6 +103,19 @@ export default function POSTab() {
 		if (displayCurrency === "USD" || !exchangeRate) return `$${amountUsd.toFixed(2)}`;
 		return `${usdToLbp(amountUsd, exchangeRate.rate, exchangeRate.rounding).toLocaleString()} LBP`;
 	}
+	// Discount/Amount Tendered are still stored (and sent to the backend)
+	// in USD - only how the cashier types them changes. Toggled to LBP,
+	// typing "162000" here has to mean 162,000 LBP handed over, not
+	// $162,000, so the editable inputs below convert what's typed back to
+	// USD immediately rather than just formatting the same USD number.
+	function toDisplayAmount(amountUsd: number): number {
+		if (displayCurrency === "USD" || !exchangeRate) return amountUsd;
+		return usdToLbp(amountUsd, exchangeRate.rate, exchangeRate.rounding);
+	}
+	function fromDisplayAmount(typed: number): number {
+		if (displayCurrency === "USD" || !exchangeRate) return typed;
+		return round2(typed / exchangeRate.rate);
+	}
 	const subtotal = useMemo(() => cart.reduce((sum, line) => sum + line.qty * line.unitPrice, 0), [cart]);
 	const discountAmount = Math.min(Math.max(discount, 0), subtotal);
 	const taxableAmount = subtotal - discountAmount;
@@ -337,10 +350,10 @@ export default function POSTab() {
 						<input
 							type="number"
 							min={0}
-							step="0.01"
-							value={discount || ""}
-							onChange={(e) => setDiscount(Number(e.target.value) || 0)}
-							placeholder="0.00"
+							step={displayCurrency === "LBP" ? exchangeRate?.rounding || 1 : 0.01}
+							value={discount ? toDisplayAmount(discount) : ""}
+							onChange={(e) => setDiscount(e.target.value === "" ? 0 : fromDisplayAmount(Number(e.target.value)))}
+							placeholder={displayCurrency === "LBP" ? "0" : "0.00"}
 							style={discountInputStyle}
 						/>
 					</div>
@@ -356,10 +369,10 @@ export default function POSTab() {
 							<input
 								type="number"
 								min={0}
-								step="0.01"
-								value={amountTendered}
-								onChange={(e) => setAmountTendered(e.target.value === "" ? "" : Number(e.target.value))}
-								placeholder="0.00"
+								step={displayCurrency === "LBP" ? exchangeRate?.rounding || 1 : 0.01}
+								value={amountTendered === "" ? "" : toDisplayAmount(amountTendered)}
+								onChange={(e) => setAmountTendered(e.target.value === "" ? "" : fromDisplayAmount(Number(e.target.value)))}
+								placeholder={displayCurrency === "LBP" ? "0" : "0.00"}
 								style={discountInputStyle}
 							/>
 						</div>
