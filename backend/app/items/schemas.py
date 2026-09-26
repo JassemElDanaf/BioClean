@@ -33,6 +33,12 @@ class ItemCreate(ItemBase):
 	# change after that goes through the stock-adjustment service, so
 	# there's one code path for "how does stock change", not many.
 	initial_stock_qty: float = Field(default=0, ge=0)
+	# Optional - who this opening stock was actually bought from. When
+	# set (and initial_stock_qty > 0), the router records this as a real
+	# received Purchase Order instead of a bare stock movement, so it
+	# shows up in Purchase History and counts toward that supplier's
+	# balance - we did actually pay someone for it, so it belongs there.
+	supplier_id: int | None = None
 
 
 class ItemUpdate(ItemBase):
@@ -60,6 +66,11 @@ class StockAdjustment(BaseModel):
 	# purchase_receipt, but accepted generically since this is the one
 	# endpoint every kind of stock change goes through.
 	unit_cost: float | None = Field(default=None, ge=0)
+	# Optional - who this stock was actually bought from. When set (and
+	# delta > 0), the router records this as a real received Purchase
+	# Order instead of a bare stock movement - see ItemCreate.supplier_id's
+	# docstring for the same reasoning.
+	supplier_id: int | None = None
 
 
 class StockMovementOut(BaseModel):

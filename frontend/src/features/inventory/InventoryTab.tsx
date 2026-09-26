@@ -317,8 +317,9 @@ export default function InventoryTab() {
 				onImageChanged={reload}
 				editing={editing}
 				categories={categories.filter((c) => c !== "All")}
+				suppliers={suppliers}
 			/>
-			<StockAdjustModal item={adjusting} onClose={() => setAdjusting(null)} onAdjusted={reload} />
+			<StockAdjustModal item={adjusting} onClose={() => setAdjusting(null)} onAdjusted={reload} suppliers={suppliers} />
 			<StockHistoryModal item={viewingHistory} onClose={() => setViewingHistory(null)} />
 			<SuppliersModal open={suppliersOpen} onClose={() => setSuppliersOpen(false)} suppliers={suppliers} onChanged={reloadSuppliers} />
 			<ManageCategoriesModal

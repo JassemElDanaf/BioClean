@@ -15,7 +15,7 @@ export function listItems(filters: { lowStockOnly?: boolean; outOfStockOnly?: bo
 }
 
 export function createItem(values: ItemFormValues): Promise<Item> {
-	return apiRequest<Item>("/items", { method: "POST", body: JSON.stringify(values) });
+	return apiRequest<Item>("/items", { method: "POST", body: JSON.stringify({ ...values, supplier_id: values.supplier_id === "" ? null : values.supplier_id }) });
 }
 
 export function updateItem(id: number, values: ItemFormValues): Promise<Item> {
@@ -50,10 +50,10 @@ export function uploadItemImage(itemId: number, file: File): Promise<Item> {
 	return apiUpload<Item>(`/items/${itemId}/image`, formData);
 }
 
-export function adjustStock(itemId: number, delta: number, reason: string, unitCost?: number): Promise<Item> {
+export function adjustStock(itemId: number, delta: number, reason: string, unitCost?: number, supplierId?: number): Promise<Item> {
 	return apiRequest<Item>(`/items/${itemId}/adjust-stock`, {
 		method: "POST",
-		body: JSON.stringify({ delta, reason, unit_cost: unitCost ?? null }),
+		body: JSON.stringify({ delta, reason, unit_cost: unitCost ?? null, supplier_id: supplierId ?? null }),
 	});
 }
 

@@ -3,7 +3,7 @@ import Modal from "../../components/Modal";
 import Select from "../../components/Select";
 import { ApiError } from "../../lib/api";
 import { adjustStock } from "./api";
-import type { Item } from "./types";
+import type { Item, Supplier } from "./types";
 
 const REASONS = [
 	{ value: "purchase_receipt", label: "Received shipment (+)" },
@@ -16,15 +16,23 @@ export default function StockAdjustModal({
 	item,
 	onClose,
 	onAdjusted,
+	suppliers,
 }: {
 	item: Item | null;
 	onClose: () => void;
 	onAdjusted: () => void;
+	// Who this shipment was actually bought from - optional, only asked
+	// while receiving stock. Setting it records this adjustment as a real
+	// received Purchase Order instead of a bare stock movement, so it
+	// shows up in Purchase History and counts toward that supplier's
+	// balance (see backend StockAdjustment.supplier_id's docstring).
+	suppliers: Supplier[];
 }) {
 	const [qty, setQty] = useState(0);
 	const [direction, setDirection] = useState<"add" | "remove">("add");
 	const [reason, setReason] = useState(REASONS[0].value);
 	const [unitCost, setUnitCost] = useState(0);
+	const [supplierId, setSupplierId] = useState<number | "">("");
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
@@ -33,6 +41,7 @@ export default function StockAdjustModal({
 	// but stays editable for the times it isn't.
 	useEffect(() => {
 		if (item) setUnitCost(item.cost_price);
+		setSupplierId("");
 	}, [item]);
 
 	if (!item) return null;
@@ -46,7 +55,7 @@ export default function StockAdjustModal({
 		setError(null);
 		try {
 			const delta = direction === "add" ? qty : -qty;
-			await adjustStock(item.id, delta, reason, isReceiving ? unitCost : undefined);
+			await adjustStock(item.id, delta, reason, isReceiving ? unitCost : undefined, isReceiving && supplierId !== "" ? supplierId : undefined);
 			setQty(0);
 			onAdjusted();
 			onClose();
@@ -99,17 +108,23 @@ export default function StockAdjustModal({
 				</label>
 
 				{isReceiving && (
-					<label style={labelStyle}>
-						Price paid per {item.uom} this time
-						<input
-							type="number"
-							step="0.01"
-							min={0}
-							value={unitCost}
-							onChange={(e) => setUnitCost(Number(e.target.value))}
-							style={inputStyle}
-						/>
-					</label>
+					<>
+						<label style={labelStyle}>
+							Price paid per {item.uom} this time
+							<input
+								type="number"
+								step="0.01"
+								min={0}
+								value={unitCost}
+								onChange={(e) => setUnitCost(Number(e.target.value))}
+								style={inputStyle}
+							/>
+						</label>
+						<label style={labelStyle}>
+							Bought From (optional)
+							<Select value={supplierId} onChange={setSupplierId} placeholder="No supplier" options={suppliers.map((s) => ({ value: s.id, label: s.name }))} />
+						</label>
+					</>
 				)}
 
 				{error && <div style={{ color: "crimson", fontSize: 13 }}>{error}</div>}

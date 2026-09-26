@@ -4,7 +4,7 @@ import Modal from "../../components/Modal";
 import Select from "../../components/Select";
 import { ApiError } from "../../lib/api";
 import { uploadItemImage } from "./api";
-import type { Item, ItemFormValues } from "./types";
+import type { Item, ItemFormValues, Supplier } from "./types";
 
 const EMPTY: ItemFormValues = {
 	item_name: "",
@@ -16,6 +16,7 @@ const EMPTY: ItemFormValues = {
 	wholesale_price: 0,
 	reorder_level: 10,
 	initial_stock_qty: 0,
+	supplier_id: "",
 };
 
 export default function ItemFormModal({
@@ -25,6 +26,7 @@ export default function ItemFormModal({
 	onImageChanged,
 	editing,
 	categories,
+	suppliers,
 }: {
 	open: boolean;
 	onClose: () => void;
@@ -42,6 +44,9 @@ export default function ItemFormModal({
 	// "cleaning" vs "Clean Supplies"), while still allowing a genuinely
 	// new category by just typing it.
 	categories: string[];
+	// Who Initial Stock Qty (below) was actually bought from - optional,
+	// only asked at creation (see supplier_id's own docstring in types.ts).
+	suppliers: Supplier[];
 }) {
 	// The parent passes a `key` that changes per edited item, which forces
 	// React to fully remount this component whenever a different item (or
@@ -195,9 +200,19 @@ export default function ItemFormModal({
 					</Field>
 				</div>
 				{!editing && (
-					<Field label="Initial Stock Qty">
-						<input type="number" step="1" value={values.initial_stock_qty} onChange={(e) => field("initial_stock_qty", Number(e.target.value))} style={inputStyle} />
-					</Field>
+					<div style={gridStyle(2)}>
+						<Field label="Initial Stock Qty">
+							<input type="number" step="1" value={values.initial_stock_qty} onChange={(e) => field("initial_stock_qty", Number(e.target.value))} style={inputStyle} />
+						</Field>
+						<Field label="Bought From (optional)">
+							<Select
+								value={values.supplier_id}
+								onChange={(v) => field("supplier_id", v)}
+								placeholder="No supplier"
+								options={suppliers.map((s) => ({ value: s.id, label: s.name }))}
+							/>
+						</Field>
+					</div>
 				)}
 
 				{error && <div style={{ color: "crimson", fontSize: 13 }}>{error}</div>}
@@ -224,6 +239,7 @@ export function toFormValues(item: Item): ItemFormValues {
 		// saving an edit doesn't reset it to a default.
 		reorder_level: item.reorder_level,
 		initial_stock_qty: 0,
+		supplier_id: "",
 	};
 }
 

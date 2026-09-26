@@ -216,7 +216,7 @@ def create_item(payload: schemas.ItemCreate, db: Session = Depends(get_db)):
 	if db.query(models.Item).filter(models.Item.barcode == payload.barcode).first():
 		raise HTTPException(status_code=409, detail=f"Barcode '{payload.barcode}' already exists")
 
-	data = payload.model_dump(exclude={"initial_stock_qty"})
+	data = payload.model_dump(exclude={"initial_stock_qty", "supplier_id"})
 	item = models.Item(**data)
 	db.add(item)
 	# flush (not commit) assigns item.id without ending the transaction -
@@ -225,11 +225,30 @@ def create_item(payload: schemas.ItemCreate, db: Session = Depends(get_db)):
 	# matching stock record.
 	db.flush()
 
-	if payload.initial_stock_qty:
+	# No supplier given - same bare stock movement as before (e.g. an
+	# opening count that wasn't actually purchased from anyone specific).
+	# With one, the opening stock is recorded as a real received Purchase
+	# Order instead (below, after this commits) - see
+	# ItemCreate.supplier_id's docstring for why.
+	if payload.initial_stock_qty and not payload.supplier_id:
 		service.adjust_stock(db, item, payload.initial_stock_qty, reason="initial_stock", commit=False)
 
 	db.commit()
 	db.refresh(item)
+
+	if payload.initial_stock_qty and payload.supplier_id:
+		from ..purchases import service as purchases_service
+
+		po = purchases_service.create_purchase_order(
+			db,
+			payload.supplier_id,
+			[{"item_id": item.id, "qty": payload.initial_stock_qty, "unit_cost": float(item.cost_price)}],
+			notes="Opening stock",
+			warehouse_id=None,
+		)
+		purchases_service.receive_purchase_order(db, po)
+		db.refresh(item)
+
 	return _to_out(item)
 
 
@@ -303,15 +322,32 @@ def adjust_item_stock(item_id: int, payload: schemas.StockAdjustment, db: Sessio
 	item = db.get(models.Item, item_id)
 	if not item:
 		raise HTTPException(status_code=404, detail="Item not found")
-	service.adjust_stock(
-		db,
-		item,
-		payload.delta,
-		payload.warehouse_id,
-		reason=payload.reason or "manual",
-		reference=payload.reference,
-		unit_cost=payload.unit_cost,
-	)
+
+	# A supplier was named for stock actually coming in - record this as a
+	# real received Purchase Order (so it shows in Purchase History and
+	# counts toward that supplier's balance) instead of a bare stock
+	# movement. See StockAdjustment.supplier_id's docstring.
+	if payload.supplier_id and payload.delta > 0:
+		from ..purchases import service as purchases_service
+
+		po = purchases_service.create_purchase_order(
+			db,
+			payload.supplier_id,
+			[{"item_id": item.id, "qty": payload.delta, "unit_cost": payload.unit_cost}],
+			notes=payload.reference,
+			warehouse_id=payload.warehouse_id,
+		)
+		purchases_service.receive_purchase_order(db, po)
+	else:
+		service.adjust_stock(
+			db,
+			item,
+			payload.delta,
+			payload.warehouse_id,
+			reason=payload.reason or "manual",
+			reference=payload.reference,
+			unit_cost=payload.unit_cost,
+		)
 	db.refresh(item)
 	return _to_out(item)
 

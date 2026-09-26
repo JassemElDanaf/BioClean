@@ -52,6 +52,56 @@ def test_adjust_stock_add_and_remove(client):
 	assert res.json()["stock_qty"] == 12
 
 
+def test_adjust_stock_with_supplier_creates_a_received_purchase_order(client):
+	item = make_item(client)
+	supplier = client.post("/api/v1/suppliers", json={"name": "Acme Supplier"}).json()
+
+	res = client.post(
+		f"{ITEMS_URL}/{item['id']}/adjust-stock",
+		json={"delta": 5, "reason": "purchase_receipt", "unit_cost": 1.25, "supplier_id": supplier["id"]},
+	)
+	assert res.status_code == 200
+	assert res.json()["stock_qty"] == 15
+	# Real cost paid on this stock movement should also move item.cost_price
+	# forward the same way any other received purchase does.
+	assert res.json()["cost_price"] == 1.25
+
+	orders = client.get("/api/v1/purchases").json()
+	assert len(orders) == 1
+	po = orders[0]
+	assert po["status"] == "received"
+	assert po["supplier_id"] == supplier["id"]
+	assert po["total"] == 5 * 1.25
+
+
+def test_adjust_stock_without_supplier_does_not_create_a_purchase_order(client):
+	item = make_item(client)
+	res = client.post(f"{ITEMS_URL}/{item['id']}/adjust-stock", json={"delta": 5, "reason": "purchase_receipt"})
+	assert res.status_code == 200
+
+	orders = client.get("/api/v1/purchases").json()
+	assert orders == []
+
+
+def test_create_item_with_supplier_and_initial_stock_creates_a_purchase_order(client):
+	supplier = client.post("/api/v1/suppliers", json={"name": "Acme Supplier"}).json()
+	item = make_item(client, initial_stock_qty=20, cost_price=2.5, supplier_id=supplier["id"])
+	assert item["stock_qty"] == 20
+
+	orders = client.get("/api/v1/purchases").json()
+	assert len(orders) == 1
+	po = orders[0]
+	assert po["status"] == "received"
+	assert po["supplier_id"] == supplier["id"]
+	assert po["total"] == 20 * 2.5
+
+
+def test_create_item_with_initial_stock_but_no_supplier_creates_no_purchase_order(client):
+	make_item(client, initial_stock_qty=20)
+	orders = client.get("/api/v1/purchases").json()
+	assert orders == []
+
+
 def test_adjust_stock_cannot_go_negative(client):
 	item = make_item(client, initial_stock_qty=2)
 	res = client.post(f"{ITEMS_URL}/{item['id']}/adjust-stock", json={"delta": -5, "reason": "damage"})

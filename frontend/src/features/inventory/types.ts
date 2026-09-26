@@ -27,6 +27,12 @@ export interface ItemFormValues {
 	// round-trips so saving an edit doesn't silently reset it to a default.
 	reorder_level: number;
 	initial_stock_qty: number;
+	// Who this opening stock was actually bought from - optional, but when
+	// set (alongside initial_stock_qty) the backend records it as a real
+	// received Purchase Order so it shows up in Purchase History, since we
+	// did actually pay someone for it (see backend ItemCreate.supplier_id's
+	// docstring).
+	supplier_id: number | "";
 }
 
 export interface Supplier {
