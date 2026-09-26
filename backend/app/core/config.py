@@ -17,10 +17,16 @@ class Settings(BaseSettings):
 	# movements today; POS sales, invoices, etc. later) reads this one
 	# constant rather than each hardcoding its own "admin" string.
 	current_user: str = "admin"
-	# Single shared password gating the whole app (see main.py's auth
-	# middleware) - numbers only, change anytime via .env, no restart-time
-	# code change needed.
-	app_password: str = "123123456456"
+
+	# Per-user login gate (see main.py's auth middleware) - username ->
+	# (password, role). Password is numbers-only. Hardcoded here rather
+	# than a users table since the whole roster is 3 fixed people; add/
+	# remove/change by editing this dict, no migration needed.
+	users: dict[str, tuple[str, str]] = {
+		"Admin": ("160405", "Administrator"),
+		"Sandy": ("234434", "User"),
+		"Jad": ("569432", "User"),
+	}
 
 
 settings = Settings()

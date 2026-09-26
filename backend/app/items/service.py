@@ -9,7 +9,7 @@ from sqlalchemy import or_
 from sqlalchemy.exc import IntegrityError
 from sqlalchemy.orm import Session, joinedload
 
-from ..core.config import settings
+from ..core.auth import get_current_user
 from ..warehouses.models import Warehouse
 from .models import Item, ItemStock, StockMovement
 
@@ -161,7 +161,7 @@ def adjust_stock(
 			qty_after=new_qty,
 			reason=reason,
 			unit_cost=unit_cost,
-			user=settings.current_user,
+			user=get_current_user(),
 			reference=reference,
 		)
 	)

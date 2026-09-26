@@ -6,7 +6,11 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
+from .audit.router import router as audit_router
+from .audit import service as audit_service
+from .core.auth import set_current_user
 from .core.config import settings
+from .core.database import SessionLocal
 from .customers.router import router as customers_router
 from .dashboard.router import router as dashboard_router
 from .expenses.router import router as expenses_router
@@ -53,6 +57,7 @@ app.include_router(expenses_router, prefix=settings.api_v1_prefix)
 app.include_router(income_router, prefix=settings.api_v1_prefix)
 app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
 app.include_router(reports_router, prefix=settings.api_v1_prefix)
+app.include_router(audit_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")
@@ -60,34 +65,63 @@ def health():
 	return {"status": "ok"}
 
 
-# Single shared password gating the whole app now that it's reachable over
-# the Tailscale Funnel (i.e. the public internet), not just the tailnet.
-# HTTP Basic rather than a login page/cookie because it's the least code -
-# the browser's native auth prompt handles storing/resending credentials,
-# so there's no session/cookie logic to write. Username is ignored; only
-# the password (settings.app_password, numbers-only, changeable via .env)
-# is checked. Skips /health so uptime checks don't need credentials.
+# Per-user login gate now that the app is reachable over the Tailscale
+# Funnel (i.e. the public internet), not just the tailnet. HTTP Basic
+# rather than a login page/cookie because it's the least code - the
+# browser's native auth prompt handles storing/resending credentials, so
+# there's no session/cookie logic to write. Username is checked against
+# settings.users (see config.py); on success it's stashed in a contextvar
+# (core/auth.py) so any service can stamp "who did this" without a `user`
+# parameter threaded through every function, and every state-changing
+# request also lands a row in audit_log (see audit/models.py) so there's a
+# complete, tamper-evident trail of who did what and when. Skips /health
+# so uptime checks don't need credentials.
+MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+
+
 @app.middleware("http")
-async def require_password(request: Request, call_next):
+async def require_login(request: Request, call_next):
 	if request.url.path == "/health":
 		return await call_next(request)
 
 	auth = request.headers.get("Authorization")
+	username = None
 	if auth and auth.startswith("Basic "):
 		import base64
 
 		try:
 			decoded = base64.b64decode(auth[len("Basic "):]).decode()
-			_, _, password = decoded.partition(":")
+			candidate, _, password = decoded.partition(":")
 		except Exception:
-			password = ""
-		if secrets.compare_digest(password, settings.app_password):
-			return await call_next(request)
+			candidate, password = "", ""
+		expected = settings.users.get(candidate)
+		if expected is not None and secrets.compare_digest(password, expected[0]):
+			username = candidate
 
-	return Response(
-		status_code=401,
-		headers={"WWW-Authenticate": 'Basic realm="BioClean"'},
-	)
+	if username is None:
+		return Response(
+			status_code=401,
+			headers={"WWW-Authenticate": 'Basic realm="BioClean"'},
+		)
+
+	set_current_user(username)
+	response = await call_next(request)
+
+	if request.method in MUTATING_METHODS:
+		# Best-effort: a logging failure must never take down the real
+		# request it's describing. Uses its own short-lived session rather
+		# than the request's DB dependency, since that session (and any
+		# transaction on it) may already be closed/committed by this point.
+		try:
+			db = SessionLocal()
+			try:
+				audit_service.log_action(db, username, request.method, request.url.path, response.status_code)
+			finally:
+				db.close()
+		except Exception:
+			pass
+
+	return response
 
 
 # Serves the frontend's production build (frontend/dist, from `npm run

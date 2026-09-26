@@ -1,5 +1,6 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ComponentType } from "react";
+import { whoAmI } from "../features/audit/api";
 import { ChevronDownIcon } from "./icons";
 import { useSidebar } from "./SidebarContext";
 
@@ -41,6 +42,11 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 	const menuRef = useRef<HTMLDivElement>(null);
 	const asideRef = useRef<HTMLElement>(null);
 	const location = useLocation();
+	const [user, setUser] = useState({ username: "", role: "" });
+
+	useEffect(() => {
+		whoAmI().then(setUser).catch(() => {});
+	}, []);
 
 	// Groups start collapsed, except whichever one contains the page you're
 	// already on (so landing on /invoicing, say, doesn't hide the very
@@ -241,11 +247,12 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 				})}
 			</nav>
 
-			{/* Single-operator system (confirmed - Admin only, see backend
-			    settings.current_user) - shown here as a fixed identity rather
-			    than a real logged-in-user switcher, since there isn't one.
-			    Doubles as the way to reach Reports/Settings, which deliberately
-			    aren't in the main tab list above - click to open the flyout. */}
+			{/* Real logged-in identity (from GET /api/v1/audit/me, which reads
+			    the Basic Auth username the backend's require_login middleware
+			    already resolved for this session - see backend
+			    app/core/config.py's `users` dict). Doubles as the way to reach
+			    Reports/Settings, which deliberately aren't in the main tab list
+			    above - click to open the flyout. */}
 			<div ref={menuRef} style={{ position: "relative", borderTop: "1px solid var(--neutral-200)" }}>
 				{menuOpen && (
 					<div style={flyoutStyle}>
@@ -281,11 +288,11 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 							flexShrink: 0,
 						}}
 					>
-						A
+						{user.username ? user.username[0].toUpperCase() : ""}
 					</div>
 					<div style={{ minWidth: 0, textAlign: "left" }}>
-						<div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>Admin</div>
-						<div style={{ fontSize: 12, color: "var(--neutral-500)" }}>Administrator</div>
+						<div style={{ fontSize: 13, fontWeight: 700, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" }}>{user.username || "..."}</div>
+						<div style={{ fontSize: 12, color: "var(--neutral-500)" }}>{user.role}</div>
 					</div>
 				</button>
 			</div>

@@ -1,4 +1,5 @@
 import type { ComponentType } from "react";
+import ActivityLog from "../audit/ActivityLog";
 import InventoryAuditReport from "../inventory/AuditReport";
 import StockValuationReport from "../inventory/StockValuationReport";
 
@@ -19,4 +20,5 @@ export interface ReportDefinition {
 export const REPORTS: ReportDefinition[] = [
 	{ key: "stock-valuation", label: "Stock Valuation", component: StockValuationReport, group: "Reports" },
 	{ key: "inventory-audit", label: "Inventory Audit", component: InventoryAuditReport, group: "Reports" },
+	{ key: "activity-log", label: "Activity Log", component: ActivityLog, group: "Reports" },
 ];
