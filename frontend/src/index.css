@@ -136,13 +136,42 @@ input[type="number"] {
 	}
 }
 
+/* ItemFormModal's Category/UOM, Cost/Retail/Wholesale, and Initial Stock/
+   Bought From rows - minmax(0, 1fr), not a bare 1fr, is the actual fix for
+   CSS Grid's blowout gotcha (columns otherwise refuse to shrink below
+   their content's natural width, which is what pushed the whole modal
+   wider than the screen before). Collapsing to one column below 480px
+   is what actually fixes "cramped/hard to tap" on a real phone, not just
+   the overflow - three ~90px-wide price inputs side by side are too
+   small a target to comfortably tap on a phone even once they no longer
+   overflow. */
+.form-grid-2 {
+	display: grid;
+	grid-template-columns: repeat(2, minmax(0, 1fr));
+	gap: 10px;
+}
+.form-grid-3 {
+	display: grid;
+	grid-template-columns: repeat(3, minmax(0, 1fr));
+	gap: 10px;
+}
+@media (max-width: 480px) {
+	.form-grid-2,
+	.form-grid-3 {
+		grid-template-columns: 1fr;
+	}
+}
+
 /* POS checkout (POSTab.tsx) - product grid and the current-sale cart sit
    side by side on desktop, each independently scrollable within a fixed
    height:100% row. A phone screen has no room for that side by side (the
    360px cart alone exceeds most phones' full width), so below the
-   breakpoint they stack instead: the whole page scrolls normally (no
-   more height:100%/overflow:auto on either half) and the cart takes full
-   width under the product grid rather than a fixed 360px column. */
+   breakpoint they stack instead - but the product grid keeps its OWN
+   capped-height scroll area rather than letting the whole page scroll:
+   scrolling through the full catalog to reach Current Sale/Complete Sale
+   at the bottom is exactly the "everything is scrolled off screen" phone
+   problem this is meant to avoid. Capping it means Current Sale is
+   always reachable within about one product row's worth of scrolling. */
 @media (max-width: 900px) {
 	.pos-layout {
 		flex-direction: column;
@@ -153,7 +182,8 @@ input[type="number"] {
 	}
 	.pos-products-scroll {
 		flex: none !important;
-		overflow-y: visible !important;
+		max-height: 40vh !important;
+		overflow-y: auto !important;
 	}
 	.pos-cart {
 		width: 100% !important;
@@ -163,13 +193,13 @@ input[type="number"] {
 /* The "build a document" workspace (Quotation/Invoicing/Purchases, once
    "+ New" is open) - ProductGrid and DocumentCartPanel side by side,
    each 68%/32% of a height:100% row, same structural idea as POS's own
-   layout above and the same fix: below the breakpoint the row stacks to
-   full-width columns and the page scrolls normally instead of each half
-   independently scrolling inside a fixed-height box (that box's height
-   comes from percentages of an ancestor that itself goes height:auto on
-   mobile - left alone, it collapses to zero instead of just disappearing
-   cleanly, which is why every half needs its own override here, not just
-   the row). */
+   layout above. Below the breakpoint the row stacks to full-width
+   columns; the product catalog keeps its own capped-height scroll (same
+   reasoning as .pos-products-scroll above - the cart/totals/Create
+   button need to be reachable without scrolling through the whole
+   catalog first), while the cart panel itself goes back to flowing
+   naturally with the page, since its content (a handful of lines plus
+   totals) is normally short enough not to need a second scroll area. */
 @media (max-width: 900px) {
 	.doc-workspace {
 		height: auto !important;
@@ -187,12 +217,19 @@ input[type="number"] {
 		width: 100% !important;
 		min-width: 0 !important;
 	}
-	.doc-product-grid,
+	.doc-product-grid {
+		height: auto !important;
+		overflow: visible !important;
+	}
 	.doc-cart-panel {
 		height: auto !important;
 		overflow: visible !important;
 	}
-	.doc-product-grid-scroll,
+	.doc-product-grid-scroll {
+		flex: none !important;
+		max-height: 40vh !important;
+		overflow-y: auto !important;
+	}
 	.doc-cart-panel-scroll {
 		flex: none !important;
 		overflow-y: visible !important;

@@ -103,12 +103,12 @@ export default function ProductGrid({
 				/>
 			</div>
 
-			{/* Wraps to as many lines as the category list needs, rather than
-			    scrolling sideways - a second horizontal scrollbar stacked
-			    under the product grid's own is exactly the "competing scroll
-			    areas" pattern this page should never have. */}
+			{/* One scrollable row, same as POS's own category pills - not
+			    flex-wrap, which on a phone-width screen with this app's real
+			    category count turns into several rows tall enough to push
+			    the product grid (and everything below it) out of view. */}
 			{categories.length > 2 && (
-				<div style={{ display: "flex", flexWrap: "wrap", gap: 8, marginBottom: 8 }}>
+				<div style={{ display: "flex", gap: 8, overflowX: "auto", marginBottom: 8, paddingBottom: 2 }}>
 					{categories.map((c) => (
 						<button key={c} onClick={() => setCategory(c)} style={c === category ? pillActiveStyle : pillStyle}>
 							{c}

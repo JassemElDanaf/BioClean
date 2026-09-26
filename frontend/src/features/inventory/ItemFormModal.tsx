@@ -146,7 +146,7 @@ export default function ItemFormModal({
 						style={inputStyle}
 					/>
 				</Field>
-				<div style={gridStyle(2)}>
+				<div className="form-grid-2">
 					<Field label="Category">
 						<CategoryPicker value={values.category} onChange={(v) => field("category", v)} categories={categories} placeholder="No category yet" />
 					</Field>
@@ -188,7 +188,7 @@ export default function ItemFormModal({
 					{imageError && <div style={{ color: "crimson", fontSize: 13, marginTop: 4 }}>{imageError}</div>}
 				</div>
 
-				<div style={gridStyle(3)}>
+				<div className="form-grid-3">
 					<Field label="Cost Price">
 						<input type="number" step="0.01" value={values.cost_price} onChange={(e) => field("cost_price", Number(e.target.value))} style={inputStyle} />
 					</Field>
@@ -200,7 +200,7 @@ export default function ItemFormModal({
 					</Field>
 				</div>
 				{!editing && (
-					<div style={gridStyle(2)}>
+					<div className="form-grid-2">
 						<Field label="Initial Stock Qty">
 							<input type="number" step="1" value={values.initial_stock_qty} onChange={(e) => field("initial_stock_qty", Number(e.target.value))} style={inputStyle} />
 						</Field>
@@ -250,14 +250,6 @@ function Field({ label, children }: { label: string; children: React.ReactNode }
 			{children}
 		</label>
 	);
-}
-
-// CSS Grid's `1fr` columns don't shrink below their content's natural
-// width by default (a well-known grid-blowout gotcha) - minmax(0, 1fr)
-// is what actually lets them shrink to fit, which is what made the
-// Cost/Retail/Wholesale row push the whole modal wider than the screen.
-function gridStyle(columns: number): React.CSSProperties {
-	return { display: "grid", gridTemplateColumns: `repeat(${columns}, minmax(0, 1fr))`, gap: 10 };
 }
 
 const inputStyle: React.CSSProperties = {

@@ -229,7 +229,7 @@ function ExpenseFormModal({
 				<Field label="Category">
 					<CategoryPicker value={values.category} onChange={(v) => field("category", v)} categories={categories} placeholder="Rent, Utilities, Salaries..." />
 				</Field>
-				<div style={{ display: "grid", gridTemplateColumns: "1fr 1fr", gap: 10 }}>
+				<div className="form-grid-2">
 					<Field label="Amount">
 						<input type="number" step="0.01" min={0.01} value={values.amount || ""} onChange={(e) => field("amount", Number(e.target.value))} required style={inputStyle} />
 					</Field>
