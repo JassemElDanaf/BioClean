@@ -2,6 +2,7 @@ import os
 
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
+from fastapi.responses import FileResponse
 from fastapi.staticfiles import StaticFiles
 
 from .core.config import settings
@@ -56,3 +57,32 @@ app.include_router(reports_router, prefix=settings.api_v1_prefix)
 @app.get("/health")
 def health():
 	return {"status": "ok"}
+
+
+# Serves the frontend's production build (frontend/dist, from `npm run
+# build`) directly out of this same process - the daily-use alternative to
+# running the Vite dev server (`npm run dev`). The dev server watches every
+# file in the project for hot-reload, which on a machine where the project
+# folder lives inside an OneDrive-synced directory means a background
+# OneDrive sync can look exactly like a code change and trigger a full page
+# reload with nobody having touched anything. A production build has no
+# file-watcher at all, so this can never happen - and it collapses "two
+# processes on two ports" into one, since API_BASE/image_url are already
+# relative paths (see lib/api.ts, items/router.py) that work identically
+# whether the frontend is proxied by Vite or served from right here.
+#
+# Registered last, and only mounted if the build actually exists - a dev
+# environment that hasn't run `npm run build` yet just doesn't get this
+# route, and every API/upload/health route above still take priority over
+# anything with a matching path.
+_FRONTEND_DIST = os.path.join(os.path.dirname(__file__), "..", "..", "frontend", "dist")
+if os.path.isdir(_FRONTEND_DIST):
+	app.mount("/assets", StaticFiles(directory=os.path.join(_FRONTEND_DIST, "assets")), name="frontend-assets")
+
+	@app.get("/{full_path:path}")
+	def serve_frontend(full_path: str):
+		# React Router handles client-side routes like /inventory or /pos -
+		# there's no real file for those, so every non-API, non-asset path
+		# gets index.html and the router takes it from there, same as any
+		# other single-page app served statically.
+		return FileResponse(os.path.join(_FRONTEND_DIST, "index.html"))
