@@ -89,6 +89,7 @@ def health():
 GATED_PREFIXES = (settings.api_v1_prefix, "/uploads")
 PUBLIC_PATHS = {"/health", f"{settings.api_v1_prefix}/auth/login"}
 MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
+AUDIT_BODY_MAX_CHARS = 2000
 
 
 @app.middleware("http")
@@ -102,6 +103,19 @@ async def require_login(request: Request, call_next):
 		return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
 
 	set_current_user(username)
+
+	body = None
+	if request.method in MUTATING_METHODS and path != f"{settings.api_v1_prefix}/auth/login":
+		# Only JSON bodies (Starlette caches the read, so the route handler
+		# below still sees the full body - it isn't consumed by this) -
+		# multipart uploads (item photos) are binary and not useful as
+		# logged text, and login's own body carries a password so it's
+		# excluded outright above rather than merely truncated.
+		if "application/json" in request.headers.get("content-type", ""):
+			raw = await request.body()
+			text = raw.decode("utf-8", errors="replace")
+			body = text[:AUDIT_BODY_MAX_CHARS] + ("..." if len(text) > AUDIT_BODY_MAX_CHARS else "")
+
 	response = await call_next(request)
 
 	if request.method in MUTATING_METHODS:
@@ -112,7 +126,7 @@ async def require_login(request: Request, call_next):
 		try:
 			db = SessionLocal()
 			try:
-				audit_service.log_action(db, username, request.method, path, response.status_code)
+				audit_service.log_action(db, username, request.method, path, response.status_code, body)
 			finally:
 				db.close()
 		except Exception:

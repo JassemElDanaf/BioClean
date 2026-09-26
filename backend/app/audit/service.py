@@ -5,8 +5,8 @@ from sqlalchemy.orm import Session
 from .models import AuditLog
 
 
-def log_action(db: Session, user: str, method: str, path: str, status_code: int) -> None:
-	db.add(AuditLog(user=user, method=method, path=path, status_code=status_code))
+def log_action(db: Session, user: str, method: str, path: str, status_code: int, body: str | None = None) -> None:
+	db.add(AuditLog(user=user, method=method, path=path, status_code=status_code, body=body))
 	db.commit()
 
 

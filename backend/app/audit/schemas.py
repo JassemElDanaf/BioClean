@@ -12,3 +12,4 @@ class AuditLogRow(BaseModel):
 	method: str
 	path: str
 	status_code: int
+	body: str | None = None

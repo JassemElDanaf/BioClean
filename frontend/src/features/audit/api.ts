@@ -7,6 +7,7 @@ export interface AuditLogRow {
 	method: string;
 	path: string;
 	status_code: number;
+	body: string | null;
 }
 
 export interface AuditLogFilters {

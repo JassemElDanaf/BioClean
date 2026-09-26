@@ -11,7 +11,7 @@ from .schemas import AuditLogRow
 
 router = APIRouter(prefix="/audit", tags=["audit"])
 
-EXPORT_COLUMNS = ["Date", "User", "Method", "Path", "Status"]
+EXPORT_COLUMNS = ["Date", "User", "Method", "Path", "Status", "Details"]
 
 
 def _parse_date_range(from_date: str | None, to_date: str | None) -> tuple[datetime | None, datetime | None]:
@@ -27,6 +27,7 @@ def _export_row(entry) -> dict:
 		entry.method,
 		entry.path,
 		entry.status_code,
+		entry.body or "",
 	]
 	return dict(zip(EXPORT_COLUMNS, values))
 

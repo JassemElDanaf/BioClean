@@ -16,6 +16,26 @@ const METHOD_LABELS: Record<string, string> = {
 	DELETE: "Deleted",
 };
 
+// The raw request body is JSON ({"tax_rate": 0}) - rendered as
+// "tax_rate: 0, ..." rather than the raw braces/quotes, so it reads like a
+// sentence fragment next to the Action/Area columns instead of a code
+// dump. Falls back to the raw text for anything that isn't a flat JSON
+// object (arrays, non-JSON, or an empty body).
+function formatBody(body: string | null): string {
+	if (!body) return "-";
+	try {
+		const parsed = JSON.parse(body.endsWith("...") ? body.slice(0, -3) : body);
+		if (parsed && typeof parsed === "object" && !Array.isArray(parsed)) {
+			return Object.entries(parsed)
+				.map(([k, v]) => `${k}: ${typeof v === "object" ? JSON.stringify(v) : v}`)
+				.join(", ");
+		}
+	} catch {
+		// Not parseable (e.g. truncated mid-token) - show it verbatim below.
+	}
+	return body;
+}
+
 // "/api/v1/purchases/8/receive" -> "Purchases" - just the module name, so
 // every action across every domain (POS, Invoicing, Expenses, Items, ...)
 // reads as one consistent trail with no per-route label to maintain.
@@ -110,6 +130,7 @@ export default function ActivityLog() {
 								<th style={thStyle}>Action</th>
 								<th style={thStyle}>Area</th>
 								<th style={thStyle}>Result</th>
+								<th style={thStyle}>Details</th>
 							</tr>
 						</thead>
 						<tbody>
@@ -122,11 +143,17 @@ export default function ActivityLog() {
 									<td style={{ ...tdStyle, color: row.status_code < 400 ? "var(--brand)" : "crimson", fontWeight: 600 }}>
 										{row.status_code < 400 ? "Success" : `Failed (${row.status_code})`}
 									</td>
+									<td
+										style={{ ...tdStyle, maxWidth: 320, overflow: "hidden", textOverflow: "ellipsis", whiteSpace: "nowrap", color: "var(--neutral-500)" }}
+										title={formatBody(row.body)}
+									>
+										{formatBody(row.body)}
+									</td>
 								</tr>
 							))}
 							{rows.length === 0 && (
 								<tr>
-									<td colSpan={5} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
+									<td colSpan={6} style={{ ...tdStyle, textAlign: "center", color: "var(--neutral-500)", padding: 24 }}>
 										No activity in this range.
 									</td>
 								</tr>

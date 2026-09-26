@@ -1,4 +1,4 @@
-from sqlalchemy import Column, DateTime, Integer, String, func
+from sqlalchemy import Column, DateTime, Integer, String, Text, func
 
 from ..core.database import Base
 
@@ -25,3 +25,9 @@ class AuditLog(Base):
 	# into a human label (see frontend AuditLog page's ACTION_LABELS).
 	path = Column(String, nullable=False)
 	status_code = Column(Integer, nullable=False)
+	# The JSON body actually submitted (truncated - see main.py's audit
+	# middleware), so a row reads as "set tax_rate to 0", not just "hit PUT
+	# /settings/tax-rate". Null for requests with no useful body to show
+	# (GETs never reach here anyway, but also file uploads and /auth/login,
+	# the latter skipped deliberately since it carries a password).
+	body = Column(Text, nullable=True)
