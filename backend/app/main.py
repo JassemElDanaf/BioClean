@@ -1,8 +1,9 @@
 import os
+import secrets
 
-from fastapi import FastAPI
+from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse
+from fastapi.responses import FileResponse, Response
 from fastapi.staticfiles import StaticFiles
 
 from .core.config import settings
@@ -57,6 +58,36 @@ app.include_router(reports_router, prefix=settings.api_v1_prefix)
 @app.get("/health")
 def health():
 	return {"status": "ok"}
+
+
+# Single shared password gating the whole app now that it's reachable over
+# the Tailscale Funnel (i.e. the public internet), not just the tailnet.
+# HTTP Basic rather than a login page/cookie because it's the least code -
+# the browser's native auth prompt handles storing/resending credentials,
+# so there's no session/cookie logic to write. Username is ignored; only
+# the password (settings.app_password, numbers-only, changeable via .env)
+# is checked. Skips /health so uptime checks don't need credentials.
+@app.middleware("http")
+async def require_password(request: Request, call_next):
+	if request.url.path == "/health":
+		return await call_next(request)
+
+	auth = request.headers.get("Authorization")
+	if auth and auth.startswith("Basic "):
+		import base64
+
+		try:
+			decoded = base64.b64decode(auth[len("Basic "):]).decode()
+			_, _, password = decoded.partition(":")
+		except Exception:
+			password = ""
+		if secrets.compare_digest(password, settings.app_password):
+			return await call_next(request)
+
+	return Response(
+		status_code=401,
+		headers={"WWW-Authenticate": 'Basic realm="BioClean"'},
+	)
 
 
 # Serves the frontend's production build (frontend/dist, from `npm run

@@ -17,6 +17,10 @@ class Settings(BaseSettings):
 	# movements today; POS sales, invoices, etc. later) reads this one
 	# constant rather than each hardcoding its own "admin" string.
 	current_user: str = "admin"
+	# Single shared password gating the whole app (see main.py's auth
+	# middleware) - numbers only, change anytime via .env, no restart-time
+	# code change needed.
+	app_password: str = "123456"
 
 
 settings = Settings()
