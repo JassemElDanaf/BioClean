@@ -36,12 +36,23 @@ export default function StockAdjustModal({
 	const [saving, setSaving] = useState(false);
 	const [error, setError] = useState<string | null>(null);
 
-	// Pre-fill with the item's current cost whenever a different item is
-	// opened - it's usually right (prices don't change every delivery),
-	// but stays editable for the times it isn't.
+	// Reset every time a different item is opened - otherwise whatever was
+	// last typed (qty, direction, reason) carries over and silently applies
+	// to the new item too. Cost pre-fills from the item's current cost
+	// (usually right, still editable) and the supplier defaults to
+	// BioClean Factory - nearly every restock comes from there, same
+	// reasoning as Purchasing's own default (see PurchasesTab.tsx) - while
+	// staying free to pick someone else or clear it for a non-purchase
+	// adjustment.
 	useEffect(() => {
-		if (item) setUnitCost(item.cost_price);
-		setSupplierId("");
+		if (!item) return;
+		setQty(0);
+		setDirection("add");
+		setReason(REASONS[0].value);
+		setUnitCost(item.cost_price);
+		const factory = suppliers.find((s) => s.name === "BioClean Factory");
+		setSupplierId(factory ? factory.id : "");
+		// eslint-disable-next-line react-hooks/exhaustive-deps
 	}, [item]);
 
 	if (!item) return null;
