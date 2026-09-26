@@ -1,7 +1,7 @@
 import { Link, NavLink, useLocation } from "react-router-dom";
 import { useEffect, useRef, useState, type ComponentType } from "react";
-import { whoAmI } from "../features/audit/api";
-import { ChevronDownIcon } from "./icons";
+import { logout, whoAmI } from "../features/auth/api";
+import { ChevronDownIcon, LogoutIcon } from "./icons";
 import { useSidebar } from "./SidebarContext";
 
 export interface NavTab {
@@ -63,6 +63,18 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 
 	function toggleGroup(label: string) {
 		setExpandedGroups((prev) => ({ ...prev, [label]: !prev[label] }));
+	}
+
+	// A real server-side session now (see backend auth/router.py) - logout
+	// just deletes the session cookie and reloads. App.tsx's own /auth/me
+	// check on mount then sees no valid session and renders the login page
+	// instead of the app, deterministically (no browser-auth-cache tricks).
+	async function handleLogout() {
+		try {
+			await logout();
+		} finally {
+			window.location.reload();
+		}
 	}
 
 	useEffect(() => {
@@ -270,6 +282,10 @@ export default function Sidebar({ tabs, flyoutTabs }: { tabs: NavItem[]; flyoutT
 								{tab.label}
 							</NavLink>
 						))}
+						<button onClick={handleLogout} style={{ ...flyoutItemStyle, width: "100%", background: "none", border: "none", cursor: "pointer" }}>
+							<LogoutIcon size={16} color="var(--neutral-500)" />
+							Logout
+						</button>
 					</div>
 				)}
 				<button onClick={() => setMenuOpen((v) => !v)} style={adminButtonStyle}>

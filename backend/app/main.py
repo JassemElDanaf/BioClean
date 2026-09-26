@@ -1,14 +1,14 @@
 import os
-import secrets
 
 from fastapi import FastAPI, Request
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, Response
+from fastapi.responses import FileResponse, JSONResponse
 from fastapi.staticfiles import StaticFiles
 
 from .audit.router import router as audit_router
 from .audit import service as audit_service
-from .core.auth import set_current_user
+from .auth.router import router as auth_router
+from .core.auth import SESSION_COOKIE, set_current_user, verify_session_token
 from .core.config import settings
 from .core.database import SessionLocal
 from .customers.router import router as customers_router
@@ -58,6 +58,7 @@ app.include_router(income_router, prefix=settings.api_v1_prefix)
 app.include_router(dashboard_router, prefix=settings.api_v1_prefix)
 app.include_router(reports_router, prefix=settings.api_v1_prefix)
 app.include_router(audit_router, prefix=settings.api_v1_prefix)
+app.include_router(auth_router, prefix=settings.api_v1_prefix)
 
 
 @app.get("/health")
@@ -66,43 +67,39 @@ def health():
 
 
 # Per-user login gate now that the app is reachable over the Tailscale
-# Funnel (i.e. the public internet), not just the tailnet. HTTP Basic
-# rather than a login page/cookie because it's the least code - the
-# browser's native auth prompt handles storing/resending credentials, so
-# there's no session/cookie logic to write. Username is checked against
-# settings.users (see config.py); on success it's stashed in a contextvar
-# (core/auth.py) so any service can stamp "who did this" without a `user`
-# parameter threaded through every function, and every state-changing
-# request also lands a row in audit_log (see audit/models.py) so there's a
-# complete, tamper-evident trail of who did what and when. Skips /health
-# so uptime checks don't need credentials.
+# Funnel (i.e. the public internet), not just the tailnet. A real login
+# page + signed session cookie (see auth/router.py, core/auth.py) rather
+# than HTTP Basic Auth - Basic Auth's credential cache lives entirely
+# inside the browser with no way for a page to actually clear it, so
+# there's no way to build a working Logout button on top of it. A cookie
+# is state we control end-to-end: logging out just deletes it.
+#
+# Only gates /api/... and /uploads/... - the frontend's static HTML/JS
+# shell (below) is served to everyone unauthenticated, same as any SPA:
+# the *page* that renders the login form has to load before a user can
+# submit credentials. No real data is reachable without a valid session -
+# every actual data route lives under one of the two gated prefixes.
+# On success the username is stashed in a contextvar (core/auth.py) so any
+# service can stamp "who did this" without a `user` parameter threaded
+# through every function, and every state-changing request also lands a
+# row in audit_log (see audit/models.py) so there's a complete trail of
+# who did what and when. /health and /api/v1/auth/login are the only
+# exceptions within the gated prefixes (health checks and the login
+# request itself obviously can't require a session yet).
+GATED_PREFIXES = (settings.api_v1_prefix, "/uploads")
+PUBLIC_PATHS = {"/health", f"{settings.api_v1_prefix}/auth/login"}
 MUTATING_METHODS = {"POST", "PUT", "PATCH", "DELETE"}
 
 
 @app.middleware("http")
 async def require_login(request: Request, call_next):
-	if request.url.path == "/health":
+	path = request.url.path
+	if path in PUBLIC_PATHS or not path.startswith(GATED_PREFIXES):
 		return await call_next(request)
 
-	auth = request.headers.get("Authorization")
-	username = None
-	if auth and auth.startswith("Basic "):
-		import base64
-
-		try:
-			decoded = base64.b64decode(auth[len("Basic "):]).decode()
-			candidate, _, password = decoded.partition(":")
-		except Exception:
-			candidate, password = "", ""
-		expected = settings.users.get(candidate)
-		if expected is not None and secrets.compare_digest(password, expected[0]):
-			username = candidate
-
+	username = verify_session_token(request.cookies.get(SESSION_COOKIE))
 	if username is None:
-		return Response(
-			status_code=401,
-			headers={"WWW-Authenticate": 'Basic realm="BioClean"'},
-		)
+		return JSONResponse(status_code=401, content={"detail": "Not authenticated"})
 
 	set_current_user(username)
 	response = await call_next(request)
@@ -115,7 +112,7 @@ async def require_login(request: Request, call_next):
 		try:
 			db = SessionLocal()
 			try:
-				audit_service.log_action(db, username, request.method, request.url.path, response.status_code)
+				audit_service.log_action(db, username, request.method, path, response.status_code)
 			finally:
 				db.close()
 		except Exception:

@@ -3,8 +3,6 @@ from datetime import date, datetime, time
 from fastapi import APIRouter, Depends
 from sqlalchemy.orm import Session
 
-from ..core.auth import get_current_user
-from ..core.config import settings
 from ..core.database import get_db
 from ..shared.export import to_csv_response
 from ..shared.timezone import to_local
@@ -31,16 +29,6 @@ def _export_row(entry) -> dict:
 		entry.status_code,
 	]
 	return dict(zip(EXPORT_COLUMNS, values))
-
-
-@router.get("/me")
-def whoami():
-	"""Tells the frontend who's logged in (name + role) so the sidebar can
-	show the real signed-in user instead of a hardcoded "Admin" - reads the
-	username the auth middleware already resolved for this request."""
-	username = get_current_user()
-	role = settings.users.get(username, (None, "User"))[1]
-	return {"username": username, "role": role}
 
 
 @router.get("/log", response_model=list[AuditLogRow])

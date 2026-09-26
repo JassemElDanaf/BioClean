@@ -16,15 +16,6 @@ export interface AuditLogFilters {
 	method?: string;
 }
 
-export interface WhoAmI {
-	username: string;
-	role: string;
-}
-
-export function whoAmI(): Promise<WhoAmI> {
-	return apiRequest<WhoAmI>("/audit/me");
-}
-
 export function getAuditLog(filters: AuditLogFilters): Promise<AuditLogRow[]> {
 	const params = new URLSearchParams();
 	if (filters.from_date) params.set("from_date", filters.from_date);

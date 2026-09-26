@@ -1,7 +1,9 @@
-import type { ComponentType } from "react";
+import { useEffect, useState, type ComponentType } from "react";
 import { Navigate, Route, Routes } from "react-router-dom";
 import Sidebar, { type NavItem, type NavTab } from "./components/Sidebar";
 import { SidebarProvider } from "./components/SidebarContext";
+import LoginPage from "./features/auth/LoginPage";
+import { whoAmI } from "./features/auth/api";
 import {
 	CustomersIcon,
 	DashboardIcon,
@@ -120,7 +122,28 @@ const REPORTS_TAB: NavTab = { path: "reports", label: "Reports", icon: ReportsIc
 const SETTINGS_TAB: NavTab & { component: ComponentType } = { path: "settings", label: "Settings", icon: SettingsIcon, component: Settings };
 const ALL_TABS = [...ROUTABLE_TABS, SETTINGS_TAB];
 
+// Gates the whole app behind a real login (see backend auth/router.py) -
+// "checking" (still waiting on GET /auth/me) renders nothing to avoid a
+// flash of the login form for someone who already has a valid session
+// cookie; "out" renders LoginPage; "in" renders the real app. A fresh
+// GET /auth/me is what actually confirms the session (any state-changing
+// request can 401 mid-session if it expires, but reads never trigger
+// login) - LoginPage's own successful POST /auth/login flips this
+// directly without a second round trip.
+type AuthState = "checking" | "in" | "out";
+
 export default function App() {
+	const [authState, setAuthState] = useState<AuthState>("checking");
+
+	useEffect(() => {
+		whoAmI()
+			.then(() => setAuthState("in"))
+			.catch(() => setAuthState("out"));
+	}, []);
+
+	if (authState === "checking") return null;
+	if (authState === "out") return <LoginPage onLoggedIn={() => setAuthState("in")} />;
+
 	return (
 		<SidebarProvider>
 			<div style={{ display: "flex", height: "100vh" }}>

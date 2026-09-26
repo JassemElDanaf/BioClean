@@ -3,6 +3,8 @@ dev). Every module imports `settings` from here rather than reading
 os.environ directly - one place to see/change configuration as the app
 grows, and the standard FastAPI-recommended approach for this."""
 
+import secrets
+
 from pydantic_settings import BaseSettings, SettingsConfigDict
 
 
@@ -27,6 +29,14 @@ class Settings(BaseSettings):
 		"Sandy": ("234434", "User"),
 		"Jad": ("569432", "User"),
 	}
+
+	# Signs session cookies (see core/auth.py) - generated fresh on every
+	# process start unless SESSION_SECRET is set in .env. That's fine day
+	# to day (a restart just invalidates everyone's session, same as any
+	# server restart would with a real session store), but set a fixed
+	# value in .env for a production-like deployment so a routine restart
+	# doesn't log every user out.
+	session_secret: str = secrets.token_hex(32)
 
 
 settings = Settings()
