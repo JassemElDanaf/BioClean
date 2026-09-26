@@ -20,7 +20,7 @@ class Settings(BaseSettings):
 	# Single shared password gating the whole app (see main.py's auth
 	# middleware) - numbers only, change anytime via .env, no restart-time
 	# code change needed.
-	app_password: str = "123456"
+	app_password: str = "123123456456"
 
 
 settings = Settings()
